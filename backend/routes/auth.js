@@ -208,4 +208,40 @@ router.delete('/delete-account', authh, async (req, res) => {
   }
 });
 
+// --- UPDATE PROFILE (Requirement 2.1.5, 2.2.1, 2.3.2) ---
+router.put('/update-profile', authh, async (req, res) => {
+  try {
+    const { displayName, bio, avatar } = req.body;
+    const user = await User.findById(req.user.id);
+
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
+
+    // Validate Display Name (Requirement 2.2.2)
+    if (displayName && (displayName.length < 3 || displayName.length > 50)) {
+      return res.status(400).json({ success: false, message: "Display name must be 3-50 characters" });
+    }
+
+    if (displayName) user.displayName = displayName;
+    if (bio !== undefined) user.bio = bio;
+    if (avatar !== undefined) user.avatar = avatar;
+
+    await user.save();
+
+    res.json({ 
+      success: true, 
+      message: "Profile updated successfully!",
+      user: {
+        id: user._id,
+        username: user.username,
+        email: user.email,
+        fullName: user.displayName, // Mapping back to your frontend key
+        bio: user.bio,
+        avatar: user.avatar
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
 module.exports = router;

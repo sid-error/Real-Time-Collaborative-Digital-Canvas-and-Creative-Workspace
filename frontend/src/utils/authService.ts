@@ -15,6 +15,23 @@ export const checkUsernameAvailability = async (username: string) => {
   return response.data;
 };
 
+
+  export const updateProfile = async (profileData: { 
+    displayName?: string; 
+    bio?: string; 
+    avatar?: string | null; // Allow null here
+  }) => {
+    try {
+      const response = await api.put('/auth/update-profile', profileData);
+      return response.data;
+    } catch (error: any) {
+      return { 
+        success: false, 
+        message: error.response?.data?.message || "Update failed" 
+      };
+    }
+  };
+
 // NEW: Call the backend to verify the token
 export const verifyEmailToken = async (token: string) => {
   try {

@@ -34,14 +34,19 @@ const InviteModal: React.FC<InviteModalProps> = ({
     ? `${roomLink}?password=${encodeURIComponent(roomPassword)}`
     : roomLink;
 
-  useEffect(() => {
-    if (!isOpen) {
-      setCopiedItem(null);
-      setEmailInput('');
-      setEmailList([]);
-      setCustomMessage(`Join me in "${roomName}" on CanvasCollab!`);
-    }
-  }, [isOpen, roomName]);
+  const getDefaultMessage = () => `Join me in "${roomName}" on CanvasCollab!`;
+
+  const resetForm = () => {
+    setCopiedItem(null);
+    setEmailInput('');
+    setEmailList([]);
+    setCustomMessage(getDefaultMessage());
+  };
+
+  const handleClose = () => {
+    resetForm();
+    onClose(); // whatever closes the modal
+  };
 
   const copyToClipboard = (text: string, item: string) => {
     navigator.clipboard.writeText(text);
@@ -129,7 +134,7 @@ const InviteModal: React.FC<InviteModalProps> = ({
             </div>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
             aria-label="Close modal"
           >
@@ -478,7 +483,7 @@ const InviteModal: React.FC<InviteModalProps> = ({
               {inviteMethod === 'email' && 'Invite specific people via email'}
               {inviteMethod === 'social' && 'Share with your network on social media'}
             </div>
-            <Button onClick={onClose} variant="outline">
+            <Button onClick={handleClose} variant="outline">
               Done
             </Button>
           </div>

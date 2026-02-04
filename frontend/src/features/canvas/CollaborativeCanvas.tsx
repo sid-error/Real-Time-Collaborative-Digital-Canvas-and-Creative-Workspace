@@ -153,37 +153,6 @@ export const CollaborativeCanvas = () => {
   }, [brushConfig]);
 
   /**
-   * Initialize and update canvas size
-   */
-  const updateCanvasSize = useCallback(() => {
-    if (containerRef.current && canvasRef.current) {
-      const container = containerRef.current;
-      const width = container.clientWidth;
-      const height = container.clientHeight;
-      
-      setCanvasSize({ width, height });
-      
-      const canvas = canvasRef.current;
-      // Set display size
-      canvas.style.width = `${width}px`;
-      canvas.style.height = `${height}px`;
-      
-      // Set actual pixel dimensions (account for device pixel ratio)
-      const dpr = window.devicePixelRatio || 1;
-      canvas.width = width * dpr;
-      canvas.height = height * dpr;
-      
-      redrawCanvas();
-    }
-  }, []);
-
-  useEffect(() => {
-    updateCanvasSize();
-    window.addEventListener('resize', updateCanvasSize);
-    return () => window.removeEventListener('resize', updateCanvasSize);
-  }, [updateCanvasSize]);
-
-  /**
    * Draw grid background
    */
   const drawGrid = useCallback((ctx: CanvasRenderingContext2D, width: number, height: number) => {
@@ -218,6 +187,119 @@ export const CollaborativeCanvas = () => {
   }, [showGrid, zoomLevel, panOffset]);
 
   /**
+   * Redraw all elements on canvas
+   */
+  const redrawCanvas = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    // Clear canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Draw grid
+    drawGrid(ctx, canvas.width, canvas.height);
+    
+    // Apply transformations for elements
+    ctx.save();
+    const dpr = window.devicePixelRatio || 1;
+    ctx.scale(1/dpr, 1/dpr);
+    ctx.translate(panOffset.x * zoomLevel * dpr, panOffset.y * zoomLevel * dpr);
+    ctx.scale(zoomLevel, zoomLevel);
+    
+    // Set anti-aliasing
+    if (brushConfig.antiAliasing) {
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+    }
+    
+    // Draw all saved elements
+    elements.forEach((el) => {
+      ctx.beginPath();
+      ctx.strokeStyle = el.color;
+      ctx.lineWidth = el.strokeWidth;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.globalAlpha = el.opacity || 1;
+      
+      // Handle different element types
+      switch (el.type) {
+        case 'pencil':
+          if (el.points && el.points.length > 1) {
+            ctx.moveTo(el.points[0].x / dpr, el.points[0].y / dpr);
+            for (let i = 1; i < el.points.length; i++) {
+              ctx.lineTo(el.points[i].x / dpr, el.points[i].y / dpr);
+            }
+          }
+          break;
+          
+        case 'rectangle':
+          if (el.x !== undefined && el.y !== undefined && 
+              el.width !== undefined && el.height !== undefined) {
+            ctx.strokeRect(el.x / dpr, el.y / dpr, el.width / dpr, el.height / dpr);
+          }
+          break;
+          
+        case 'circle':
+          if (el.x !== undefined && el.y !== undefined && 
+              el.width !== undefined && el.height !== undefined) {
+            const radius = Math.sqrt(Math.pow(el.width, 2) + Math.pow(el.height, 2)) / dpr;
+            ctx.arc(el.x / dpr, el.y / dpr, Math.abs(radius), 0, 2 * Math.PI);
+          }
+          break;
+          
+        case 'eraser':
+          // Eraser is just a white pencil
+          ctx.strokeStyle = '#ffffff';
+          if (el.points && el.points.length > 1) {
+            ctx.moveTo(el.points[0].x / dpr, el.points[0].y / dpr);
+            for (let i = 1; i < el.points.length; i++) {
+              ctx.lineTo(el.points[i].x / dpr, el.points[i].y / dpr);
+            }
+          }
+          break;
+      }
+      
+      ctx.stroke();
+    });
+    
+    ctx.restore();
+  }, [elements, canvasSize, zoomLevel, panOffset, drawGrid, brushConfig.antiAliasing]);
+
+  /**
+   * Initialize and update canvas size
+   */
+  const updateCanvasSize = useCallback(() => {
+    if (containerRef.current && canvasRef.current) {
+      const container = containerRef.current;
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+      
+      setCanvasSize({ width, height });
+      
+      const canvas = canvasRef.current;
+      // Set display size
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+      
+      // Set actual pixel dimensions (account for device pixel ratio)
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = width * dpr;
+      canvas.height = height * dpr;
+      
+      redrawCanvas();
+    }
+  }, []);
+
+  useEffect(() => {
+    updateCanvasSize();
+    window.addEventListener('resize', updateCanvasSize);
+    return () => window.removeEventListener('resize', updateCanvasSize);
+  }, [updateCanvasSize]);
+
+  /**
    * Convert mouse coordinates to canvas coordinates
    */
   const getCanvasCoordinates = (clientX: number, clientY: number): Point => {
@@ -248,49 +330,36 @@ export const CollaborativeCanvas = () => {
   /**
    * Start drawing operation
    */
-  const startDrawing = (e: React.MouseEvent) => {
-    const { clientX, clientY } = e;
-    const point = getCanvasCoordinates(clientX, clientY);
-    
-    setIsDrawing(true);
-    lastPointRef.current = point;
-    lastTimeRef.current = Date.now();
-    
-    if (tool === 'pencil' || tool === 'eraser') {
-      // Initialize brush engine
-      if (brushEngineRef.current) {
-        brushEngineRef.current.clear();
-        brushEngineRef.current.addPoint(point);
-      }
-      
-      const id = Date.now().toString();
-      const newElement: DrawingElement = {
-        id,
-        type: tool,
-        points: [point],
-        color: tool === 'eraser' ? '#ffffff' : color,
-        strokeWidth,
-        opacity
-      };
-      
-      setCurrentElement(newElement);
-    } else {
-      const id = Date.now().toString();
-      const newElement: DrawingElement = {
-        id,
-        type: tool,
-        x: point.x,
-        y: point.y,
-        width: 0,
-        height: 0,
-        color: color,
-        strokeWidth,
-        opacity
-      };
-      
-      setCurrentElement(newElement);
-    }
+  const startDrawing = useCallback((e: React.MouseEvent) => {
+  const point = getCanvasCoordinates(e.clientX, e.clientY);
+  setIsDrawing(true);
+  lastPointRef.current = point;
+  lastTimeRef.current = Date.now();
+
+  const id = `${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+
+  const newElement: DrawingElement = tool === 'pencil' || tool === 'eraser' ? {
+    id,
+    type: tool,
+    points: [point],
+    color: tool === 'eraser' ? '#ffffff' : color,
+    strokeWidth,
+    opacity
+  } : {
+    id,
+    type: tool,
+    x: point.x,
+    y: point.y,
+    width: 0,
+    height: 0,
+    color,
+    strokeWidth,
+    opacity
   };
+
+  setCurrentElement(newElement);
+}, [tool, color, strokeWidth, opacity, getCanvasCoordinates]);
+
 
   /**
    * Update drawing while mouse moves
@@ -415,88 +484,6 @@ export const CollaborativeCanvas = () => {
       ctx.restore();
     }
   };
-
-  /**
-   * Redraw all elements on canvas
-   */
-  const redrawCanvas = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    
-    // Clear canvas
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
-    // Draw grid
-    drawGrid(ctx, canvas.width, canvas.height);
-    
-    // Apply transformations for elements
-    ctx.save();
-    const dpr = window.devicePixelRatio || 1;
-    ctx.scale(1/dpr, 1/dpr);
-    ctx.translate(panOffset.x * zoomLevel * dpr, panOffset.y * zoomLevel * dpr);
-    ctx.scale(zoomLevel, zoomLevel);
-    
-    // Set anti-aliasing
-    if (brushConfig.antiAliasing) {
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
-    }
-    
-    // Draw all saved elements
-    elements.forEach((el) => {
-      ctx.beginPath();
-      ctx.strokeStyle = el.color;
-      ctx.lineWidth = el.strokeWidth;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      ctx.globalAlpha = el.opacity || 1;
-      
-      // Handle different element types
-      switch (el.type) {
-        case 'pencil':
-          if (el.points && el.points.length > 1) {
-            ctx.moveTo(el.points[0].x / dpr, el.points[0].y / dpr);
-            for (let i = 1; i < el.points.length; i++) {
-              ctx.lineTo(el.points[i].x / dpr, el.points[i].y / dpr);
-            }
-          }
-          break;
-          
-        case 'rectangle':
-          if (el.x !== undefined && el.y !== undefined && 
-              el.width !== undefined && el.height !== undefined) {
-            ctx.strokeRect(el.x / dpr, el.y / dpr, el.width / dpr, el.height / dpr);
-          }
-          break;
-          
-        case 'circle':
-          if (el.x !== undefined && el.y !== undefined && 
-              el.width !== undefined && el.height !== undefined) {
-            const radius = Math.sqrt(Math.pow(el.width, 2) + Math.pow(el.height, 2)) / dpr;
-            ctx.arc(el.x / dpr, el.y / dpr, Math.abs(radius), 0, 2 * Math.PI);
-          }
-          break;
-          
-        case 'eraser':
-          // Eraser is just a white pencil
-          ctx.strokeStyle = '#ffffff';
-          if (el.points && el.points.length > 1) {
-            ctx.moveTo(el.points[0].x / dpr, el.points[0].y / dpr);
-            for (let i = 1; i < el.points.length; i++) {
-              ctx.lineTo(el.points[i].x / dpr, el.points[i].y / dpr);
-            }
-          }
-          break;
-      }
-      
-      ctx.stroke();
-    });
-    
-    ctx.restore();
-  }, [elements, canvasSize, zoomLevel, panOffset, drawGrid, brushConfig.antiAliasing]);
 
   // Redraw when dependencies change
   useEffect(() => {

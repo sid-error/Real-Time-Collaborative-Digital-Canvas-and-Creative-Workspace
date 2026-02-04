@@ -7,7 +7,8 @@ import {
 } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import RoomCardComponent from '../../components/ui/RoomCardComponent';
-import roomService, { Room } from '../../services/roomService';
+import type{ Room } from '../../services/roomService';
+import roomService from '../../services/roomService';
 import { useNavigate } from 'react-router-dom';
 
 interface MyRoomsDashboardProps {

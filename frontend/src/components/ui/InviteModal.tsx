@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   X, Copy, Check, Mail, Link, Users, Share2, MessageSquare,
-  Facebook, Twitter, Linkedin, MessageCircle, WhatsApp
+  Facebook, Twitter, Linkedin, MessageCircle,
 } from 'lucide-react';
 import { Button } from './Button';
 
@@ -194,7 +194,6 @@ const InviteModal: React.FC<InviteModalProps> = ({
                     <Button
                       onClick={() => copyToClipboard(inviteLink, 'link')}
                       className="absolute right-2 top-2 gap-2"
-                      size="sm"
                     >
                       {copiedItem === 'link' ? <Check size={16} /> : <Copy size={16} />}
                       {copiedItem === 'link' ? 'Copied!' : 'Copy'}
@@ -217,7 +216,6 @@ const InviteModal: React.FC<InviteModalProps> = ({
                       <Button
                         onClick={() => copyToClipboard(roomPassword, 'password')}
                         className="absolute right-2 top-2 gap-2"
-                        size="sm"
                       >
                         {copiedItem === 'password' ? <Check size={16} /> : <Copy size={16} />}
                         {copiedItem === 'password' ? 'Copied!' : 'Copy'}
@@ -405,7 +403,7 @@ const InviteModal: React.FC<InviteModalProps> = ({
                     onClick={() => shareOnSocial('whatsapp')}
                     className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-green-50 dark:hover:bg-green-900/20 hover:border-green-300 dark:hover:border-green-700 transition-all flex flex-col items-center gap-2"
                   >
-                    <WhatsApp className="w-6 h-6 text-[#25D366]" />
+                    <MessageCircle className="w-6 h-6 text-[#25D366]" />
                     <span className="font-medium text-slate-700 dark:text-slate-300">WhatsApp</span>
                   </button>
 
@@ -461,7 +459,6 @@ const InviteModal: React.FC<InviteModalProps> = ({
                   </code>
                   <Button
                     onClick={() => copyToClipboard(inviteLink, 'direct')}
-                    size="sm"
                     className="gap-2"
                   >
                     {copiedItem === 'direct' ? <Check size={16} /> : <Copy size={16} />}

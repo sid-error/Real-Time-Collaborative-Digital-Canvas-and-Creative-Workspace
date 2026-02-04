@@ -6,7 +6,8 @@ import {
 } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import RoomCardComponent from '../../components/ui/RoomCardComponent';
-import roomService, { Room } from '../../services/roomService';
+import type { Room } from '../../services/roomService';
+import roomService from '../../services/roomService';
 import { useNavigate } from 'react-router-dom';
 
 interface PublicRoomsGalleryProps {
@@ -58,9 +59,11 @@ const PublicRoomsGallery: React.FC<PublicRoomsGalleryProps> = ({
     }
 
     try {
+      const apiSort = sortBy === 'participants' ? 'popular' : sortBy;
+    
       const result = await roomService.getPublicRooms({
         search: searchQuery || undefined,
-        sort: sortBy,
+        sort: apiSort, // Use mapped value
         page: refresh ? 1 : page,
         limit: 20
       });

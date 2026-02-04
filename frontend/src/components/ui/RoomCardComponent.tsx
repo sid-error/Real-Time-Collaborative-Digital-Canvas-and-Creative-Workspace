@@ -86,17 +86,16 @@ const RoomCardComponent: React.FC<RoomCardProps> = ({
 
       {/* Room content */}
       <div className="p-4">
-        <div className="flex justify-between items-start mb-2">
-          <h3 className="font-bold text-slate-900 dark:text-white truncate pr-2" title={name}>
-            {name}
-          </h3>
-          <div className="flex items-center gap-1">
-            {isPublic ? (
-              <Globe className="w-4 h-4 text-green-500" title="Public Room" />
-            ) : (
-              <Lock className="w-4 h-4 text-amber-500" title="Private Room" />
-            )}
-          </div>
+        <div className="flex items-center gap-1">
+          {isPublic ? (
+            <span title="Public Room">
+              <Globe className="w-4 h-4 text-green-500" />
+            </span>
+          ) : (
+            <span title="Private Room">
+              <Lock className="w-4 h-4 text-amber-500" />
+            </span>
+          )}
         </div>
 
         {description && (

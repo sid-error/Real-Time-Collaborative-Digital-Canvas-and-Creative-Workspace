@@ -5,7 +5,8 @@ import {
   Eye, EyeOff, Copy, Check, Link, Download, Upload, RefreshCw
 } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
-import roomService, { Room, CreateRoomData } from '../../services/roomService';
+import type { Room, CreateRoomData } from '../../services/roomService';
+import roomService from '../../services/roomService';
 
 interface RoomSettingsPanelProps {
   room: Room;

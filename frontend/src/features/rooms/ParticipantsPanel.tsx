@@ -1,9 +1,10 @@
 // src/features/rooms/ParticipantsPanel.tsx
 import React, { useState, useEffect } from 'react';
+import type { JSX } from 'react';
 import { 
   Users, Crown, Shield, User, MoreVertical, Mic, MicOff, 
-  Video, VideoOff, MessageSquare, Kick, Ban, UserX, UserCheck,
-  Search, Filter, Loader2
+  Video, VideoOff, MessageSquare, Ban, UserX, UserCheck,
+  Search, Filter, Loader2, LogOut, UserMinus
 } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import roomService from '../../services/roomService';
@@ -250,6 +251,8 @@ const ParticipantsPanel: React.FC<ParticipantsPanelProps> = ({
                       }}
                       showActionMenu={showActionMenu === participant.id}
                       onCloseMenu={() => setShowActionMenu(null)}
+                      getRoleIcon={getRoleIcon}
+                      formatTimeAgo={formatTimeAgo}
                     />
                   ))}
                 </div>
@@ -275,6 +278,8 @@ const ParticipantsPanel: React.FC<ParticipantsPanelProps> = ({
                       }}
                       showActionMenu={showActionMenu === participant.id}
                       onCloseMenu={() => setShowActionMenu(null)}
+                      getRoleIcon={getRoleIcon}
+                      formatTimeAgo={formatTimeAgo}
                     />
                   ))}
                 </div>
@@ -300,6 +305,8 @@ const ParticipantsPanel: React.FC<ParticipantsPanelProps> = ({
                       }}
                       showActionMenu={showActionMenu === participant.id}
                       onCloseMenu={() => setShowActionMenu(null)}
+                      getRoleIcon={getRoleIcon}
+                      formatTimeAgo={formatTimeAgo}
                     />
                   ))}
                 </div>
@@ -354,7 +361,7 @@ const ParticipantsPanel: React.FC<ParticipantsPanelProps> = ({
                       onClick={() => handleParticipantAction('kick', selectedParticipant)}
                       className="w-full flex items-center gap-3 p-3 text-left hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors text-red-600 dark:text-red-400"
                     >
-                      <Kick className="w-5 h-5" />
+                      <LogOut className="w-5 h-5" />
                       <div>
                         <p className="font-medium">Kick from Room</p>
                         <p className="text-xs">Remove temporarily (can rejoin)</p>
@@ -404,14 +411,41 @@ const ParticipantsPanel: React.FC<ParticipantsPanelProps> = ({
 };
 
 // Participant Item Component
-const ParticipantItem: React.FC<{
+interface ParticipantItemProps {
   participant: Participant;
   currentUserId: string;
   currentUserRole: string;
   onActionClick: (participant: Participant) => void;
   showActionMenu: boolean;
   onCloseMenu: () => void;
-}> = ({ participant, currentUserId, currentUserRole, onActionClick, showActionMenu, onCloseMenu }) => {
+  getRoleIcon: (role: string) => JSX.Element;
+  formatTimeAgo: (dateString: string) => string;
+}
+
+// Update the ParticipantItem component at the end of the file:
+
+// Participant Item Component
+interface ParticipantItemProps {
+  participant: Participant;
+  currentUserId: string;
+  currentUserRole: string;
+  onActionClick: (participant: Participant) => void;
+  showActionMenu: boolean;
+  onCloseMenu: () => void;
+  getRoleIcon: (role: string) => React.JSX.Element;
+  formatTimeAgo: (dateString: string) => string;
+}
+
+const ParticipantItem: React.FC<ParticipantItemProps> = ({ 
+  participant, 
+  currentUserId, 
+  currentUserRole, 
+  onActionClick, 
+  showActionMenu, 
+  onCloseMenu,
+  getRoleIcon,
+  formatTimeAgo
+}): React.JSX.Element => {
   const isCurrentUser = participant.userId === currentUserId;
   const canManage = 
     !isCurrentUser && 

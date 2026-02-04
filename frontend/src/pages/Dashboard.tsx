@@ -3,14 +3,15 @@ import { useNavigate } from 'react-router-dom';
 import { Sidebar } from '../components/Sidebar';
 import { 
   Plus, Search, Filter, Lock, Globe, Users, Clock, Calendar, 
-  Grid, List, Star, Bookmark, History, TrendingUp, Hash
+  Grid, List, Star, Bookmark, History, TrendingUp, Hash, User
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import RoomCardComponent from '../components/ui/RoomCardComponent';
 import RoomCreationModal from '../features/rooms/RoomCreationModal';
 import RoomJoinModal from '../features/rooms/RoomJoinModal';
 import { useAuth } from '../services/AuthContext';
-import roomService, { Room } from '../services/roomService';
+import type { Room } from '../services/roomService';
+import roomService from '../services/roomService';
 
 /**
  * Dashboard component - Main dashboard with complete room management
@@ -382,7 +383,7 @@ const Dashboard = () => {
                     <h3 className="font-bold text-slate-900 dark:text-white mb-2">{room.name}</h3>
                     <div className="flex items-center justify-between text-sm text-slate-600 dark:text-slate-400">
                       <span>{room.participantCount} active users</span>
-                      <Button size="sm" onClick={() => navigate(`/room/${room.id}`)}>
+                      <Button onClick={() => navigate(`/room/${room.id}`)}>
                         Join Now
                       </Button>
                     </div>

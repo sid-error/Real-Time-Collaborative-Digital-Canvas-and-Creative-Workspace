@@ -1,3 +1,44 @@
 /* Main application stylesheet */
 /* Import Tailwind CSS framework */
 @import "tailwindcss";
+
+/* High Contrast Theme */
+.high-contrast {
+  --text-primary: #ffffff;
+  --text-secondary: #e5e7eb;
+  --bg-primary: #000000;
+  --bg-secondary: #111827;
+  --bg-tertiary: #1f2937;
+  --border-color: #ffffff;
+  --accent-color: #fbbf24;
+  --accent-hover: #f59e0b;
+}
+
+.high-contrast .bg-white {
+  background-color: #000000 !important;
+}
+
+.high-contrast .text-slate-500 {
+  color: #e5e7eb !important;
+}
+
+.high-contrast .border-slate-200 {
+  border-color: #ffffff !important;
+}
+
+.high-contrast .bg-slate-100 {
+  background-color: #111827 !important;
+}
+
+.high-contrast .bg-blue-600 {
+  background-color: #fbbf24 !important;
+  color: #000000 !important;
+}
+
+.high-contrast .text-blue-600 {
+  color: #fbbf24 !important;
+}
+
+.high-contrast .hover\:bg-blue-700:hover {
+  background-color: #f59e0b !important;
+}

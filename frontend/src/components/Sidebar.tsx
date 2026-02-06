@@ -1,20 +1,44 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { LayoutDashboard, User, Users, Settings, LogOut, PlusCircle } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../services/AuthContext';
 import { Modal } from './ui/Modal';
 import { Button } from './ui/Button';
 import { performLogout } from '../utils/logoutHandler';
+import api from '../api/axios';
 
 /**
  * Sidebar component - Main navigation sidebar for the application
  * Provides navigation links to different sections and sign out functionality
  */
 export const Sidebar = () => {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const navigate = useNavigate();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [userData, setUserData] = useState(user);
+
+  // Fetch user profile from backend on component mount
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      try {
+        const response = await api.get('/auth/profile');
+        if (response.data.success) {
+          setUserData(response.data.user);
+          // Update the auth context with the latest user data
+          updateUser(response.data.user);
+        }
+      } catch (error) {
+        console.error('Failed to fetch user profile:', error);
+        // If backend call fails, fall back to user from context
+        setUserData(user);
+      }
+    };
+
+    if (user?.id) {
+      fetchUserProfile();
+    }
+  }, [user?.id, updateUser]);
 
   /**
    * Handles user sign out process with confirmation
@@ -74,17 +98,19 @@ export const Sidebar = () => {
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 overflow-hidden">
               <img 
-                src={user?.avatar || "https://api.dicebear.com/7.x/avataaars/svg?seed=User"} 
+                // Using user name as a seed for a unique avatar
+                src={userData?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${userData?.fullName || userData?.displayName || 'User'}`} 
                 alt="User avatar"
                 className="w-full h-full object-cover"
               />
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-medium text-slate-800 dark:text-white truncate">
-                {user?.name || 'User'}
+                {/* Display the user's full name fetched from backend */}
+                {userData?.fullName || userData?.displayName || 'User'}
               </p>
               <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                {user?.email || 'user@example.com'}
+                {userData?.email || 'user@example.com'}
               </p>
             </div>
           </div>

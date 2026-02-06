@@ -24,6 +24,31 @@ router.get('/check-username/:username', async (req, res) => {
   }
 });
 
+// 1.5. Get User Profile (Protected Route)
+router.get('/profile', authh, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    res.json({
+      success: true,
+      user: {
+        id: user._id,
+        username: user.username,
+        email: user.email,
+        fullName: user.displayName,
+        displayName: user.displayName,
+        avatar: user.avatar,
+        bio: user.bio
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 // 2. Registration with Styled Email
 router.post('/register', async (req, res) => {
   try {

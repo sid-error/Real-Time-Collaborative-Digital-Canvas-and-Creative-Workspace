@@ -65,6 +65,20 @@ export const resetPassword = async (token: string, password: string) => {
   return response.data;
 };
 
+// Search users
+export const searchUsers = async (query: string) => {
+  try {
+    const response = await api.get(`/auth/search?q=${encodeURIComponent(query)}`);
+    return response.data;
+  } catch (error: any) {
+    return {
+      success: false,
+      message: error.response?.data?.message || 'Search failed',
+      users: []
+    };
+  }
+};
+
 // Clear authentication tokens
 export const clearAuthTokens = (): void => {
   // Keep theme preference

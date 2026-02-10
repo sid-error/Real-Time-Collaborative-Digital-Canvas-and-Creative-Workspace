@@ -4,65 +4,82 @@
 
 // Import nodemailer library for SMTP transport and email sending
 const nodemailer = require('nodemailer');
+const https = require('https');
 
 /**
- * Send an email using either Brevo HTTP API (preferred) or SMTP fallback.
- * Brevo API uses HTTPS (port 443), which works on all hosting platforms
- * including Render, Vercel, Railway, etc. where SMTP ports are often blocked.
+ * Send an email using Resend HTTP API (primary) or SMTP fallback.
+ * Resend uses HTTPS (port 443) — works on all hosting platforms.
  */
 const sendEmail = async (options) => {
-  const brevoApiKey = process.env.BREVO_API_KEY;
+  const resendApiKey = process.env.RESEND_API_KEY;
 
-  // Use Brevo HTTP API if API key is available (recommended for Render/cloud)
-  if (brevoApiKey) {
-    return sendWithBrevoAPI(options, brevoApiKey);
+  if (resendApiKey) {
+    return sendWithResend(options, resendApiKey);
   }
 
-  // Fallback to SMTP (works locally or on platforms that allow SMTP)
+  // Fallback to SMTP (for local dev or if no APIs configured)
   return sendWithSMTP(options);
 };
 
 /**
- * Send via Brevo Transactional Email API (HTTPS - never blocked)
+ * Send via Resend HTTP API (https://resend.com)
  */
-const sendWithBrevoAPI = async (options, apiKey) => {
-  const senderEmail = (process.env.EMAIL_USER || 'noreply@collabcanvas.com').trim();
-  const targetUrl = options.verificationUrl || options.resetUrl;
+const sendWithResend = (options, apiKey) => {
+  return new Promise((resolve, reject) => {
+    const senderEmail = process.env.RESEND_FROM || 'onboarding@resend.dev';
+    const targetUrl = options.verificationUrl || options.resetUrl;
 
-  const payload = {
-    sender: { name: 'Collaborative Canvas', email: senderEmail },
-    to: [{ email: options.email }],
-    subject: options.subject,
-    htmlContent: `
-      <div style="font-family: sans-serif; text-align: center;">
-        <h2>Action Required</h2>
-        <p>Please click the button below:</p>
-        <a href="${targetUrl}" style="background: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Confirm</a>
-        <p>Or copy this link: ${targetUrl}</p>
-      </div>
-    `,
-  };
+    const payload = JSON.stringify({
+      from: `Collaborative Canvas <${senderEmail}>`,
+      to: [options.email],
+      subject: options.subject,
+      html: `
+        <div style="font-family: sans-serif; text-align: center;">
+          <h2>Action Required</h2>
+          <p>Please click the button below:</p>
+          <a href="${targetUrl}" style="background: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Confirm</a>
+          <p>Or copy this link: ${targetUrl}</p>
+        </div>
+      `,
+    });
 
-  console.log(`Sending email via Brevo API to: ${options.email}`);
+    console.log(`Sending email via Resend API from: ${senderEmail} to: ${options.email}`);
 
-  const response = await fetch('https://api.brevo.com/v3/smtp/email', {
-    method: 'POST',
-    headers: {
-      'accept': 'application/json',
-      'api-key': apiKey,
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify(payload),
+    const reqOptions = {
+      hostname: 'api.resend.com',
+      port: 443,
+      path: '/emails',
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(payload),
+      },
+    };
+
+    const req = https.request(reqOptions, (res) => {
+      let body = '';
+      res.on('data', (chunk) => { body += chunk; });
+      res.on('end', () => {
+        console.log('Resend API response:', res.statusCode, body);
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          console.log('✅ Email sent via Resend API');
+          resolve(body);
+        } else {
+          console.error('❌ Resend API error:', res.statusCode, body);
+          reject(new Error(`Resend API error: ${res.statusCode} - ${body}`));
+        }
+      });
+    });
+
+    req.on('error', (err) => {
+      console.error('❌ Resend request error:', err.message);
+      reject(err);
+    });
+
+    req.write(payload);
+    req.end();
   });
-
-  if (!response.ok) {
-    const errorBody = await response.text();
-    console.error('Brevo API error:', response.status, errorBody);
-    throw new Error(`Brevo API error: ${response.status} - ${errorBody}`);
-  }
-
-  const result = await response.json();
-  console.log('✅ Email sent via Brevo API. MessageId:', result.messageId);
 };
 
 /**
@@ -138,6 +155,7 @@ const sendWithSMTP = async (options) => {
   } catch (error) {
     // Log full error details if email delivery fails
     console.error("Error sending email:", error);
+    // Re-throw the error to allow the calling function to handle it
     throw error; 
   }
 };

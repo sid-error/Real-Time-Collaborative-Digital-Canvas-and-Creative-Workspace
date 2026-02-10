@@ -61,6 +61,54 @@ export interface JoinRoomData {
 }
 
 /**
+ * Maps a raw backend room document to the frontend Room interface.
+ * Backend returns different field names/types than what the UI expects:
+ *   - `_id` instead of `id`
+ *   - `visibility: "public"|"private"` instead of `isPublic: boolean`
+ *   - `owner: { _id, username }` (populated) or `owner: string` (ObjectId)
+ *   - `participants: ObjectId[]` instead of `participantCount`
+ *   - `password` (hashed string) instead of `hasPassword`
+ */
+function mapBackendRoom(raw: any): Room {
+  // Handle owner — can be a populated object or a plain ObjectId string
+  let ownerId = '';
+  let ownerName = 'Unknown';
+  if (raw.owner && typeof raw.owner === 'object') {
+    ownerId = raw.owner._id || raw.owner.id || '';
+    ownerName = raw.owner.username || raw.owner.fullName || 'Unknown';
+  } else if (typeof raw.owner === 'string') {
+    ownerId = raw.owner;
+    ownerName = raw.ownerName || 'Unknown';
+  }
+
+  // Determine visibility
+  const isPublic =
+    raw.isPublic !== undefined
+      ? raw.isPublic
+      : raw.visibility === 'public';
+
+  // Determine participant count
+  const participantCount =
+    raw.participantCount ??
+    (Array.isArray(raw.participants) ? raw.participants.length : 0);
+
+  return {
+    id: raw._id || raw.id || '',
+    name: raw.name || '',
+    description: raw.description || '',
+    ownerId,
+    ownerName,
+    isPublic,
+    hasPassword: raw.hasPassword ?? raw.requiresPassword ?? (raw.visibility === 'private' && !!raw.password),
+    participantCount,
+    maxParticipants: raw.maxParticipants ?? 50,
+    createdAt: raw.createdAt || new Date().toISOString(),
+    updatedAt: raw.updatedAt || new Date().toISOString(),
+    thumbnail: raw.thumbnail,
+  };
+}
+
+/**
  * Service class for managing room operations
  * 
  * This service provides methods for creating, joining, and managing rooms
@@ -452,7 +500,7 @@ class RoomService {
    */
   async validateRoom(roomId: string): Promise<{ success: boolean; requiresPassword?: boolean; message?: string }> {
     try {
-      const response = await api.get(`/rooms/${roomCode}/validate`);
+      const response = await api.get(`/rooms/${roomId}/validate`);
       const data = response.data;
       return {
         success: data.success ?? true,

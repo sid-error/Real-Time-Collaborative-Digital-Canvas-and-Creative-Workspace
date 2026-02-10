@@ -78,16 +78,24 @@ const roomSocketHandler = (io, socket) => {
         room: roomId,
       }).populate("user", "username");
 
-      if (!participant || participant.isBanned) return;
+      // If user is banned, block them from joining
+      if (participant && participant.isBanned) {
+        socket.emit("error", { message: "You have been banned from this room" });
+        return;
+      }
 
+      // Always join the socket room (participant record may not exist yet
+      // due to timing between room creation and socket connection)
       socket.join(roomId);
       socket.data = { userId, roomId };
 
-      socket.to(roomId).emit("user-joined", {
-        user: participant.user.username,
-        userId: userId,
-        role: participant.role,
-      });
+      if (participant) {
+        socket.to(roomId).emit("user-joined", {
+          user: participant.user.username,
+          userId: userId,
+          role: participant.role,
+        });
+      }
 
       // Get updated participants list and broadcast
       const participantsList = await getParticipantsList(roomId);
@@ -96,6 +104,10 @@ const roomSocketHandler = (io, socket) => {
       });
 
       const room = await Room.findById(roomId);
+      if (!room) {
+        socket.emit("error", { message: "Room not found" });
+        return;
+      }
 
       // Combine persistent data with current volatile buffer
       const bufferedData = drawingBuffer.get(roomId) || [];

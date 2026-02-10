@@ -425,9 +425,20 @@ export const CollaborativeCanvas = ({ roomId }: CollaborativeCanvasProps) => {
       ctx.beginPath();
       ctx.strokeStyle = el.color;
       ctx.lineWidth = el.strokeWidth;
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
+      ctx.lineCap = el.strokeStyle?.lineCap || "round";
+      ctx.lineJoin = el.strokeStyle?.lineJoin || "round";
       ctx.globalAlpha = el.opacity || 1;
+
+      // Apply dash pattern from strokeStyle
+      if (el.strokeStyle?.dashArray && el.strokeStyle.dashArray.length > 0) {
+        ctx.setLineDash(el.strokeStyle.dashArray);
+      } else if (el.strokeStyle?.type === 'dashed') {
+        ctx.setLineDash([5, 5]);
+      } else if (el.strokeStyle?.type === 'dotted') {
+        ctx.setLineDash([1, 3]);
+      } else {
+        ctx.setLineDash([]);
+      }
 
       switch (el.type) {
         case "pencil":
@@ -511,9 +522,20 @@ export const CollaborativeCanvas = ({ roomId }: CollaborativeCanvasProps) => {
       ctx.beginPath();
       ctx.strokeStyle = el.color;
       ctx.lineWidth = el.strokeWidth;
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
+      ctx.lineCap = el.strokeStyle?.lineCap || "round";
+      ctx.lineJoin = el.strokeStyle?.lineJoin || "round";
       ctx.globalAlpha = el.opacity || 1;
+
+      // Apply dash pattern from strokeStyle
+      if (el.strokeStyle?.dashArray && el.strokeStyle.dashArray.length > 0) {
+        ctx.setLineDash(el.strokeStyle.dashArray);
+      } else if (el.strokeStyle?.type === 'dashed') {
+        ctx.setLineDash([5, 5]);
+      } else if (el.strokeStyle?.type === 'dotted') {
+        ctx.setLineDash([1, 3]);
+      } else {
+        ctx.setLineDash([]);
+      }
 
       // Handle different element types
       switch (el.type) {
@@ -724,7 +746,8 @@ export const CollaborativeCanvas = ({ roomId }: CollaborativeCanvasProps) => {
       points: [point],
       color: tool === 'eraser' ? '#ffffff' : color,
       strokeWidth,
-      opacity
+      opacity,
+      strokeStyle: { ...strokeStyle },
     } : {
       id,
       type: tool,
@@ -734,11 +757,12 @@ export const CollaborativeCanvas = ({ roomId }: CollaborativeCanvasProps) => {
       height: 0,
       color,
       strokeWidth,
-      opacity
+      opacity,
+      strokeStyle: { ...strokeStyle },
     };
 
     setCurrentElement(newElement);
-  }, [tool, color, strokeWidth, opacity, getCanvasCoordinates]);
+  }, [tool, color, strokeWidth, opacity, strokeStyle, getCanvasCoordinates]);
 
   /**
    * Update drawing while mouse moves

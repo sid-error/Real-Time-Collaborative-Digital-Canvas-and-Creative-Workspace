@@ -2,9 +2,9 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-COPY package*.json ./
-
-RUN npm ci
+# Install system dependencies FIRST — required by the `canvas` npm package
+# which needs native compilation tools (python, make, g++) and graphics
+# libraries (cairo, pango, jpeg, etc.) to build from source on Alpine.
 RUN apk add --no-cache \
     python3 \
     make \
@@ -15,8 +15,11 @@ RUN apk add --no-cache \
     giflib-dev \
     librsvg-dev \
     pkgconfig \
-    pixman-dev \
-  && npm ci
+    pixman-dev
+
+COPY package*.json ./
+
+RUN npm ci
 
 COPY . .
 

@@ -1,48 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { LayoutDashboard, User, LogOut, PlusCircle } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../services/AuthContext';
 import { Modal } from './ui/Modal';
 import { Button } from './ui/Button';
+import { NotificationCenter } from './ui/NotificationCenter';
 import { performLogout } from '../utils/logoutHandler';
 import api from '../api/axios';
 
 /**
  * Sidebar Component
  * 
- * @component
- * @description
- * Main navigation sidebar for the application providing access to core features
- * and user account management. Includes user profile display and sign out functionality.
- * 
- * @features
- * - **User Profile Display**: Shows current user's avatar, name, and email
- * - **Navigation Menu**: Access to Dashboard and Profile sections
- * - **Sign Out Functionality**: Secure sign out with confirmation dialog
- * - **Real-time User Data**: Fetches latest user profile from backend
- * - **Responsive Design**: Fixed sidebar layout with hover effects
- * - **Accessibility**: Proper ARIA labels and keyboard navigation
- * - **Dark Mode Support**: Full dark theme compatibility
- * 
- * @structure
- * 1. Application branding/logo
- * 2. User profile section with avatar and details
- * 3. Navigation menu (Dashboard, Profile)
- * 4. Sign out button with confirmation modal
- * 5. Version information footer
- * 
- * @example
- * ```tsx
- * // Basic usage in layout
- * <div className="flex">
- *   <Sidebar />
- *   <main className="flex-1 p-6">
- *     {children}
- *   </main>
- * </div>
- * ```
- * 
- * @returns {JSX.Element} Sidebar navigation component
+ * Main navigation sidebar for the application providing access to core features,
+ * notifications, and user account management.
  */
 export const Sidebar = () => {
   const { user, updateUser } = useAuth();
@@ -51,12 +21,13 @@ export const Sidebar = () => {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [userData, setUserData] = useState(user);
 
+  // Use a ref to avoid updateUser in dependency array (prevents infinite re-renders)
+  const updateUserRef = useRef(updateUser);
+  updateUserRef.current = updateUser;
+
   /**
-   * Effect to fetch and update user profile data from backend
-   * Runs when component mounts or when user ID changes
-   * 
-   * @effect
-   * @dependencies user?.id, updateUser
+   * Fetch user profile from backend on mount.
+   * Uses a ref for updateUser to avoid infinite re-render loop.
    */
   useEffect(() => {
     const fetchUserProfile = async () => {
@@ -64,7 +35,7 @@ export const Sidebar = () => {
         const response = await api.get("/auth/profile");
         if (response.data.success) {
           setUserData(response.data.user);
-          updateUser(response.data.user);
+          updateUserRef.current(response.data.user);
         }
       } catch (error) {
         console.error("Failed to fetch user profile:", error);
@@ -75,26 +46,12 @@ export const Sidebar = () => {
     if (user?.id) {
       fetchUserProfile();
     }
-  }, [user?.id, updateUser]);
+  }, [user?.id]);
 
-  /**
-   * Initiates the sign out process by showing confirmation modal
-   * 
-   * @function handleSignOutClick
-   */
   const handleSignOutClick = () => {
     setShowLogoutConfirm(true);
   };
 
-  /**
-   * Confirms and executes the sign out process using centralized logout handler
-   * 
-   * @async
-   * @function confirmSignOut
-   * @returns {Promise<void>}
-   * 
-   * @throws Will show alert if logout fails
-   */
   const confirmSignOut = async () => {
     setIsLoggingOut(true);
     try {
@@ -113,15 +70,6 @@ export const Sidebar = () => {
     }
   };
 
-  /**
-   * Navigation menu items configuration
-   * Only Dashboard and Profile remain (Rooms and Settings removed)
-   * 
-   * @constant {Array<Object>} navItems
-   * @property {React.ComponentType} icon - Icon component for the menu item
-   * @property {string} label - Display label for the menu item
-   * @property {string} path - Route path for navigation
-   */
   const navItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
     { icon: User, label: 'Profile', path: '/profile' },
@@ -129,7 +77,6 @@ export const Sidebar = () => {
 
   return (
     <>
-      {/* Main sidebar container */}
       <aside 
         className="w-64 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 h-screen sticky top-0 flex flex-col p-4"
         role="complementary"
@@ -152,19 +99,16 @@ export const Sidebar = () => {
         {/* User Profile Info */}
         <div className="px-3 py-4 mb-6 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
           <div className="flex items-center gap-3">
-            {/* User avatar */}
             <div 
               className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 overflow-hidden"
               role="img"
               aria-label="User avatar"
             >
               <img 
-                // Using user name as a seed for a unique avatar
                 src={userData?.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${userData?.fullName || userData?.displayName || 'User'}`} 
                 alt="User avatar"
                 className="w-full h-full object-cover"
                 onError={(e) => {
-                  // Fallback to initials if avatar fails to load
                   const target = e.target as HTMLImageElement;
                   target.style.display = 'none';
                   target.parentElement?.classList.add('flex', 'items-center', 'justify-center');
@@ -173,7 +117,6 @@ export const Sidebar = () => {
                 }}
               />
             </div>
-            {/* User information */}
             <div className="flex-1 min-w-0">
               <p className="font-medium text-slate-800 dark:text-white truncate">
                 {userData?.fullName || userData?.displayName || "User"}
@@ -183,6 +126,11 @@ export const Sidebar = () => {
               </p>
             </div>
           </div>
+        </div>
+
+        {/* Notification Center */}
+        <div className="px-2 mb-4">
+          <NotificationCenter />
         </div>
 
         {/* Main navigation menu */}
@@ -208,12 +156,12 @@ export const Sidebar = () => {
           ))}
         </nav>
 
+        {/* Sign out button — fixed duplicate className bug */}
         <button
           onClick={handleSignOutClick}
-          className="flex items-center gap-3 px-3 py-2.5 mt-4 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors group focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
-          aria-label="Sign out of your account"
           disabled={isLoggingOut}
-          className="flex items-center gap-3 px-3 py-2.5 mt-4 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors group w-full text-left"
+          className="flex items-center gap-3 px-3 py-2.5 mt-4 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors group w-full text-left disabled:opacity-50 disabled:cursor-not-allowed"
+          aria-label="Sign out of your account"
         >
           <LogOut 
             size={20} 
@@ -235,7 +183,6 @@ export const Sidebar = () => {
 
       <Modal isOpen={showLogoutConfirm} onClose={() => setShowLogoutConfirm(false)} title="Confirm Sign Out">
         <div className="space-y-4">
-          {/* Warning message */}
           <div 
             className="flex items-start gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg"
             role="alert"
@@ -248,7 +195,6 @@ export const Sidebar = () => {
             </div>
           </div>
           
-          {/* Action buttons */}
           <div className="space-y-3">
             <Button
               onClick={confirmSignOut}

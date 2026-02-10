@@ -1,7 +1,6 @@
-/// <reference types="vitest" />
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import RoomSettingsPanel from '../../../features/rooms/RoomSettingsPanel';
 import roomService from '../../../services/roomService';
 

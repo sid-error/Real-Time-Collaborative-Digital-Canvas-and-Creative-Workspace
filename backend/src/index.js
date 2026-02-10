@@ -41,7 +41,11 @@ io.on("connection", (socket) => {
 });
 
 // Middleware
-app.use(cors()); // Allow all origins by default
+app.use(cors({
+  origin: "*", 
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"]
+}));
 
 app.use(express.json());
 

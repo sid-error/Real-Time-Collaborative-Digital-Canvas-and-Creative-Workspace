@@ -1,4 +1,3 @@
-// src/components/layout/Sidebar.tsx
 import { useState, useEffect } from 'react';
 import { LayoutDashboard, User, LogOut, PlusCircle } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';

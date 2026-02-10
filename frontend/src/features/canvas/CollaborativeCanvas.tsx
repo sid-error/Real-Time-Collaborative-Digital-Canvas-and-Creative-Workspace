@@ -1,4 +1,3 @@
-// src/components/canvas/CollaborativeCanvas.tsx
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useAuth } from '../../services/AuthContext';
@@ -8,7 +7,7 @@ import BrushSettings from '../../components/ui/BrushSettings';
 import type { BrushType, StrokeStyle } from '../../types/canvas';
 import { 
   Square, Circle, Edit2, Trash2, Grid, Minus, Plus, 
-  Eraser, MinusCircle, PlusCircle, Zap, ZapOff 
+  Eraser, MinusCircle, PlusCircle, Zap, ZapOff, Download 
 } from 'lucide-react';
 
 /**
@@ -67,7 +66,7 @@ class BrushEngine {
   constructor(config: BrushConfig) {
     this.config = config;
   }
-  
+
   /**
    * Add a new point to the brush stroke with optional pressure
    * 
@@ -82,7 +81,7 @@ class BrushEngine {
     // Apply smoothing algorithm to the accumulated points
     this.applySmoothing();
   }
-  
+
   /**
    * Apply smoothing to points using a moving average algorithm
    * Creates smoother curves by averaging neighboring points
@@ -96,10 +95,10 @@ class BrushEngine {
       this.smoothedPoints = [...this.points];
       return;
     }
-    
+
     const smoothed: Point[] = [];
     const kernelSize = Math.max(1, Math.floor(this.config.smoothing * 5));
-    
+
     for (let i = 0; i < this.points.length; i++) {
       let sumX = 0;
       let sumY = 0;
@@ -118,13 +117,13 @@ class BrushEngine {
       // Calculate smoothed point position
       smoothed.push({
         x: sumX / count,
-        y: sumY / count
+        y: sumY / count,
       });
     }
-    
+
     this.smoothedPoints = smoothed;
   }
-  
+
   /**
    * Calculate stroke width based on pressure and drawing velocity
    * Slower movement = thicker stroke, faster movement = thinner stroke
@@ -136,9 +135,11 @@ class BrushEngine {
   calculateStrokeWidth(velocity: number): number {
     // Return fixed width if pressure sensitivity is disabled
     if (!this.config.pressureSensitive) {
-      return this.config.minWidth + (this.config.maxWidth - this.config.minWidth) / 2;
+      return (
+        this.config.minWidth + (this.config.maxWidth - this.config.minWidth) / 2
+      );
     }
-    
+
     // Simulate pressure: slower movement = thicker stroke
     const pressureFactor = Math.max(0.1, Math.min(2, 1 / (velocity + 0.1)));
     const width = this.config.minWidth + 
@@ -149,7 +150,7 @@ class BrushEngine {
     this.lastWidth = this.lastWidth * 0.7 + width * 0.3;
     return this.lastWidth;
   }
-  
+
   /**
    * Get the processed points for rendering
    * Returns smoothed points if smoothing is enabled, otherwise raw points
@@ -160,7 +161,7 @@ class BrushEngine {
   getPoints(): Point[] {
     return this.config.smoothing > 0 ? this.smoothedPoints : this.points;
   }
-  
+
   /**
    * Clear all stored points
    * 
@@ -170,7 +171,7 @@ class BrushEngine {
     this.points = [];
     this.smoothedPoints = [];
   }
-  
+
   /**
    * Check if there are enough points to render a stroke
    * 
@@ -239,13 +240,20 @@ export const CollaborativeCanvas = ({ roomId }: CollaborativeCanvasProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
-  
+
   // Drawing state
   const [isDrawing, setIsDrawing] = useState<boolean>(false);
   const [elements, setElements] = useState<DrawingElement[]>([]);
-  const [currentElement, setCurrentElement] = useState<DrawingElement | null>(null);
-  const [tool, setTool] = useState<'pencil' | 'rectangle' | 'circle' | 'eraser'>('pencil');
-  
+  const [currentElement, setCurrentElement] = useState<DrawingElement | null>(
+    null,
+  );
+  const [tool, setTool] = useState<
+    "pencil" | "rectangle" | "circle" | "eraser"
+  >("pencil");
+  const [lockedObjects, setLockedObjects] = useState<
+    Record<string, { userId: string; username: string; color: string }>
+  >({});
+
   // Brush settings
   const [color, setColor] = useState<string>('#2563eb');
   const [strokeWidth, setStrokeWidth] = useState<number>(3);
@@ -255,15 +263,16 @@ export const CollaborativeCanvas = ({ roomId }: CollaborativeCanvasProps) => {
     maxWidth: 10,
     pressureSensitive: true,
     smoothing: 0.7,
-    antiAliasing: true
+    antiAliasing: true,
   });
-  
+
   // Canvas state
   const [canvasSize, setCanvasSize] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
   const [showGrid, setShowGrid] = useState<boolean>(false);
   const [zoomLevel, setZoomLevel] = useState<number>(1);
   const [panOffset, setPanOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [remoteCursors, setRemoteCursors] = useState<Record<string, { x: number; y: number; username: string }>>({});
+  const [isExporting, setIsExporting] = useState<boolean>(false);
   
   // Brush engine instance
   const brushEngineRef = useRef<BrushEngine | null>(null);
@@ -274,9 +283,9 @@ export const CollaborativeCanvas = ({ roomId }: CollaborativeCanvasProps) => {
   // Brush settings for BrushSettings component
   const [brushType, setBrushType] = useState<BrushType>('pencil');
   const [strokeStyle, setStrokeStyle] = useState<StrokeStyle>({
-    type: 'solid',
-    lineCap: 'round',
-    lineJoin: 'round'
+    type: "solid",
+    lineCap: "round",
+    lineJoin: "round",
   });
 
   /**
@@ -400,49 +409,29 @@ export const CollaborativeCanvas = ({ roomId }: CollaborativeCanvasProps) => {
   }, [showGrid, zoomLevel, panOffset]);
 
   /**
-   * Redraw all elements on canvas including grid and saved drawings
+   * Helper function to draw elements for export
    * 
-   * @function redrawCanvas
-   * @dependencies elements, canvasSize, zoomLevel, panOffset, drawGrid, brushConfig.antiAliasing
+   * @function redrawCanvasForExport
+   * @param {CanvasRenderingContext2D} ctx - Canvas context
+   * @param {DrawingElement[]} elementsToDraw - Elements to draw
+   * @param {number} dpr - Device pixel ratio
    */
-  const redrawCanvas = useCallback((): void => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    
-    // Clear entire canvas
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
-    // Draw grid background
-    drawGrid(ctx, canvas.width, canvas.height);
-    
-    // Apply transformations for elements
-    ctx.save();
-    const dpr = window.devicePixelRatio || 1;
-    ctx.scale(1/dpr, 1/dpr);
-    ctx.translate(panOffset.x * zoomLevel * dpr, panOffset.y * zoomLevel * dpr);
-    ctx.scale(zoomLevel, zoomLevel);
-    
-    // Enable anti-aliasing for smoother edges
-    if (brushConfig.antiAliasing) {
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
-    }
-    
-    // Draw all saved elements
-    elements.forEach((el) => {
+  const redrawCanvasForExport = useCallback((
+    ctx: CanvasRenderingContext2D, 
+    elementsToDraw: DrawingElement[], 
+    dpr: number
+  ): void => {
+    elementsToDraw.forEach((el) => {
       ctx.beginPath();
       ctx.strokeStyle = el.color;
       ctx.lineWidth = el.strokeWidth;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
       ctx.globalAlpha = el.opacity || 1;
-      
-      // Handle different element types
+
       switch (el.type) {
-        case 'pencil':
+        case "pencil":
+        case "eraser":
           if (el.points && el.points.length > 1) {
             ctx.moveTo(el.points[0].x / dpr, el.points[0].y / dpr);
             for (let i = 1; i < el.points.length; i++) {
@@ -450,18 +439,118 @@ export const CollaborativeCanvas = ({ roomId }: CollaborativeCanvasProps) => {
             }
           }
           break;
-          
-        case 'rectangle':
-          if (el.x !== undefined && el.y !== undefined && 
-              el.width !== undefined && el.height !== undefined) {
-            ctx.strokeRect(el.x / dpr, el.y / dpr, el.width / dpr, el.height / dpr);
+
+        case "rectangle":
+          if (
+            el.x !== undefined &&
+            el.y !== undefined &&
+            el.width !== undefined &&
+            el.height !== undefined
+          ) {
+            ctx.strokeRect(
+              el.x / dpr,
+              el.y / dpr,
+              el.width / dpr,
+              el.height / dpr,
+            );
           }
           break;
-          
-        case 'circle':
-          if (el.x !== undefined && el.y !== undefined && 
-              el.width !== undefined && el.height !== undefined) {
-            const radius = Math.sqrt(Math.pow(el.width, 2) + Math.pow(el.height, 2)) / dpr;
+
+        case "circle":
+          if (
+            el.x !== undefined &&
+            el.y !== undefined &&
+            el.width !== undefined &&
+            el.height !== undefined
+          ) {
+            const radius =
+              Math.sqrt(Math.pow(el.width, 2) + Math.pow(el.height, 2)) / dpr;
+            ctx.arc(el.x / dpr, el.y / dpr, Math.abs(radius), 0, 2 * Math.PI);
+          }
+          break;
+      }
+
+      ctx.stroke();
+    });
+  }, []);
+
+  /**
+   * Redraw all elements on canvas including grid and saved drawings
+   * 
+   * @function redrawCanvas
+   * @dependencies elements, canvasSize, zoomLevel, panOffset, drawGrid, brushConfig.antiAliasing, lockedObjects
+   */
+  const redrawCanvas = useCallback((): void => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    
+    // Clear entire canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Draw grid background
+    drawGrid(ctx, canvas.width, canvas.height);
+
+    // Apply transformations for elements
+    ctx.save();
+    const dpr = window.devicePixelRatio || 1;
+    ctx.scale(1 / dpr, 1 / dpr);
+    ctx.translate(panOffset.x * zoomLevel * dpr, panOffset.y * zoomLevel * dpr);
+    ctx.scale(zoomLevel, zoomLevel);
+    
+    // Enable anti-aliasing for smoother edges
+    if (brushConfig.antiAliasing) {
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+    }
+
+    // Draw all saved elements
+    elements.forEach((el) => {
+      ctx.beginPath();
+      ctx.strokeStyle = el.color;
+      ctx.lineWidth = el.strokeWidth;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.globalAlpha = el.opacity || 1;
+
+      // Handle different element types
+      switch (el.type) {
+        case "pencil":
+          if (el.points && el.points.length > 1) {
+            ctx.moveTo(el.points[0].x / dpr, el.points[0].y / dpr);
+            for (let i = 1; i < el.points.length; i++) {
+              ctx.lineTo(el.points[i].x / dpr, el.points[i].y / dpr);
+            }
+          }
+          break;
+
+        case "rectangle":
+          if (
+            el.x !== undefined &&
+            el.y !== undefined &&
+            el.width !== undefined &&
+            el.height !== undefined
+          ) {
+            ctx.strokeRect(
+              el.x / dpr,
+              el.y / dpr,
+              el.width / dpr,
+              el.height / dpr,
+            );
+          }
+          break;
+
+        case "circle":
+          if (
+            el.x !== undefined &&
+            el.y !== undefined &&
+            el.width !== undefined &&
+            el.height !== undefined
+          ) {
+            const radius =
+              Math.sqrt(Math.pow(el.width, 2) + Math.pow(el.height, 2)) / dpr;
             ctx.arc(el.x / dpr, el.y / dpr, Math.abs(radius), 0, 2 * Math.PI);
           }
           break;
@@ -477,12 +566,60 @@ export const CollaborativeCanvas = ({ roomId }: CollaborativeCanvasProps) => {
           }
           break;
       }
-      
+
       ctx.stroke();
+
+      // Draw lock indicator if object is locked
+      if (lockedObjects[el.id]) {
+        const lockInfo = lockedObjects[el.id];
+        ctx.save();
+        ctx.globalAlpha = 1;
+
+        // Get element bounds for lock badge placement
+        let bx = 0,
+          by = 0;
+        const bw = 20,
+          bh = 20;
+        if (el.type === "pencil" || el.type === "eraser") {
+          if (el.points && el.points.length > 0) {
+            bx = el.points[0].x / dpr - 15;
+            by = el.points[0].y / dpr - 15;
+          }
+        } else {
+          bx = (el.x || 0) / dpr - 15;
+          by = (el.y || 0) / dpr - 15;
+        }
+
+        // Draw lock badge background with user color
+        ctx.fillStyle = lockInfo.color;
+        ctx.globalAlpha = 0.9;
+        ctx.fillRect(bx, by, bw, bh);
+        ctx.strokeStyle = "white";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(bx, by, bw, bh);
+
+        // Draw lock icon (simple unicode lock 🔒)
+        ctx.fillStyle = "white";
+        ctx.font = "bold 12px Arial";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.globalAlpha = 1;
+        ctx.fillText("🔒", bx + bw / 2, by + bh / 2);
+
+        ctx.restore();
+      }
     });
-    
+
     ctx.restore();
-  }, [elements, canvasSize, zoomLevel, panOffset, drawGrid, brushConfig.antiAliasing]);
+  }, [
+    elements,
+    canvasSize,
+    zoomLevel,
+    panOffset,
+    drawGrid,
+    brushConfig.antiAliasing,
+    lockedObjects,
+  ]);
 
   /**
    * Update canvas size on container resize
@@ -494,22 +631,22 @@ export const CollaborativeCanvas = ({ roomId }: CollaborativeCanvasProps) => {
       const container = containerRef.current;
       const width = container.clientWidth;
       const height = container.clientHeight;
-      
+
       setCanvasSize({ width, height });
-      
+
       const canvas = canvasRef.current;
       // Set display size
       canvas.style.width = `${width}px`;
       canvas.style.height = `${height}px`;
-      
+
       // Set actual pixel dimensions (account for device pixel ratio)
       const dpr = window.devicePixelRatio || 1;
       canvas.width = width * dpr;
       canvas.height = height * dpr;
-      
+
       redrawCanvas();
     }
-  }, []);
+  }, [redrawCanvas]);
 
   /**
    * Setup canvas size and resize listener
@@ -519,8 +656,8 @@ export const CollaborativeCanvas = ({ roomId }: CollaborativeCanvasProps) => {
    */
   useEffect(() => {
     updateCanvasSize();
-    window.addEventListener('resize', updateCanvasSize);
-    return () => window.removeEventListener('resize', updateCanvasSize);
+    window.addEventListener("resize", updateCanvasSize);
+    return () => window.removeEventListener("resize", updateCanvasSize);
   }, [updateCanvasSize]);
 
   /**
@@ -534,12 +671,12 @@ export const CollaborativeCanvas = ({ roomId }: CollaborativeCanvasProps) => {
   const getCanvasCoordinates = useCallback((clientX: number, clientY: number): Point => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
-    
+
     const rect = canvas.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
     const x = ((clientX - rect.left) / zoomLevel - panOffset.x) * dpr;
     const y = ((clientY - rect.top) / zoomLevel - panOffset.y) * dpr;
-    
+
     return { x, y };
   }, [zoomLevel, panOffset]);
 
@@ -552,13 +689,17 @@ export const CollaborativeCanvas = ({ roomId }: CollaborativeCanvasProps) => {
    * @param {number} timeDelta - Time elapsed in milliseconds
    * @returns {number} Velocity in pixels per millisecond
    */
-  const calculateVelocity = (currentPoint: Point, lastPoint: Point, timeDelta: number): number => {
+  const calculateVelocity = (
+    currentPoint: Point,
+    lastPoint: Point,
+    timeDelta: number,
+  ): number => {
     if (!lastPoint || timeDelta === 0) return 0;
-    
+
     const dx = currentPoint.x - lastPoint.x;
     const dy = currentPoint.y - lastPoint.y;
     const distance = Math.sqrt(dx * dx + dy * dy);
-    
+
     return distance / timeDelta;
   };
 
@@ -607,41 +748,45 @@ export const CollaborativeCanvas = ({ roomId }: CollaborativeCanvasProps) => {
    */
   const draw = (e: React.MouseEvent): void => {
     if (!isDrawing || !currentElement) return;
-    
+
     const { clientX, clientY } = e;
     const point = getCanvasCoordinates(clientX, clientY);
 
     // Emit cursor movement to other users
     if (socketRef.current && roomId && user) {
-      socketRef.current.emit('cursor-move', {
+      socketRef.current.emit("cursor-move", {
         roomId,
         x: point.x,
         y: point.y,
         userId: user.id || user._id,
-        username: user.username || user.fullName
+        username: user.username || user.fullName,
       });
     }
 
     const currentTime = Date.now();
     const timeDelta = currentTime - lastTimeRef.current;
-    
-    if ((tool === 'pencil' || tool === 'eraser') && brushEngineRef.current) {
+
+    if ((tool === "pencil" || tool === "eraser") && brushEngineRef.current) {
       // Calculate velocity for pressure simulation
-      const velocity = calculateVelocity(point, lastPointRef.current!, timeDelta);
-      
+      const velocity = calculateVelocity(
+        point,
+        lastPointRef.current!,
+        timeDelta,
+      );
+
       // Simulate pressure based on velocity (slower = higher pressure)
       const pressure = Math.max(0.1, Math.min(1, 100 / (velocity + 10)));
       
       // Add point with simulated pressure to brush engine
       brushEngineRef.current.addPoint(point, pressure);
-      
+
       // Update current element with brush engine points
       const updatedElement: DrawingElement = {
         ...currentElement,
         points: brushEngineRef.current.getPoints(),
-        strokeWidth: brushEngineRef.current.calculateStrokeWidth(velocity)
+        strokeWidth: brushEngineRef.current.calculateStrokeWidth(velocity),
       };
-      
+
       setCurrentElement(updatedElement);
       redrawCurrentStroke(updatedElement);
 
@@ -650,7 +795,7 @@ export const CollaborativeCanvas = ({ roomId }: CollaborativeCanvasProps) => {
         socketRef.current.emit('drawing-update', {
           roomId,
           element: updatedElement,
-          saveToDb: false
+          saveToDb: false,
         });
         lastEmitTimeRef.current = currentTime;
       }
@@ -659,13 +804,13 @@ export const CollaborativeCanvas = ({ roomId }: CollaborativeCanvasProps) => {
       const updatedElement: DrawingElement = {
         ...currentElement,
         width: point.x - (currentElement.x || 0),
-        height: point.y - (currentElement.y || 0)
+        height: point.y - (currentElement.y || 0),
       };
-      
+
       setCurrentElement(updatedElement);
       redrawCanvas();
     }
-    
+
     lastPointRef.current = point;
     lastTimeRef.current = currentTime;
   };
@@ -676,35 +821,46 @@ export const CollaborativeCanvas = ({ roomId }: CollaborativeCanvasProps) => {
    */
   const stopDrawing = (): void => {
     if (!isDrawing || !currentElement) return;
-    
+
     setIsDrawing(false);
-    
+
     // Only add to elements if it's a valid drawing
-    if (tool === 'pencil' || tool === 'eraser') {
+    if (tool === "pencil" || tool === "eraser") {
       if (brushEngineRef.current?.hasPoints()) {
-        setElements(prev => [...prev, currentElement]);
+        setElements((prev) => [...prev, currentElement]);
         if (socketRef.current && roomId) {
-          socketRef.current.emit('drawing-update', {
+          socketRef.current.emit("drawing-update", {
             roomId,
             element: currentElement,
-            saveToDb: true
+            saveToDb: true,
           });
         }
       }
     } else {
       // For shapes, check if they have valid dimensions
-      if (Math.abs(currentElement.width || 0) > 1 || Math.abs(currentElement.height || 0) > 1) {
-        setElements(prev => [...prev, currentElement]);
+      if (
+        Math.abs(currentElement.width || 0) > 1 ||
+        Math.abs(currentElement.height || 0) > 1
+      ) {
+        setElements((prev) => [...prev, currentElement]);
         if (socketRef.current && roomId) {
-          socketRef.current.emit('drawing-update', {
+          socketRef.current.emit("drawing-update", {
             roomId,
             element: currentElement,
-            saveToDb: true
+            saveToDb: true,
           });
         }
       }
     }
-    
+
+    // Emit object unlock event
+    if (socketRef.current && roomId && currentElement) {
+      socketRef.current.emit("unlock-object", {
+        roomId,
+        elementId: currentElement.id,
+      });
+    }
+
     setCurrentElement(null);
     if (brushEngineRef.current) {
       brushEngineRef.current.clear();
@@ -720,61 +876,112 @@ export const CollaborativeCanvas = ({ roomId }: CollaborativeCanvasProps) => {
   const redrawCurrentStroke = (element: DrawingElement): void => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    
-    const ctx = canvas.getContext('2d');
+
+    const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    
+
     // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
+
     // Redraw all saved elements
     redrawCanvas();
-    
+
     // Draw current stroke on top
-    if ((element.type === 'pencil' || element.type === 'eraser') && element.points && element.points.length > 1) {
+    if (
+      (element.type === "pencil" || element.type === "eraser") &&
+      element.points &&
+      element.points.length > 1
+    ) {
       ctx.save();
-      
+
       // Apply transformations
       const dpr = window.devicePixelRatio || 1;
-      ctx.scale(1/dpr, 1/dpr);
-      ctx.translate(panOffset.x * zoomLevel * dpr, panOffset.y * zoomLevel * dpr);
+      ctx.scale(1 / dpr, 1 / dpr);
+      ctx.translate(
+        panOffset.x * zoomLevel * dpr,
+        panOffset.y * zoomLevel * dpr,
+      );
       ctx.scale(zoomLevel, zoomLevel);
-      
+
       // Set drawing properties
-      ctx.strokeStyle = element.type === 'eraser' ? '#ffffff' : element.color;
+      ctx.strokeStyle = element.type === "eraser" ? "#ffffff" : element.color;
       ctx.lineWidth = element.strokeWidth;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
       ctx.globalAlpha = element.opacity || 1;
-      
+
       // Enable anti-aliasing
       if (brushConfig.antiAliasing) {
         ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = 'high';
+        ctx.imageSmoothingQuality = "high";
       }
-      
+
       // Draw the stroke
       ctx.beginPath();
       ctx.moveTo(element.points[0].x / dpr, element.points[0].y / dpr);
-      
+
       for (let i = 1; i < element.points.length; i++) {
         ctx.lineTo(element.points[i].x / dpr, element.points[i].y / dpr);
       }
-      
+
       ctx.stroke();
       ctx.restore();
     }
   };
 
   /**
-   * Redraw canvas when dependencies change
+   * Export canvas as image
    * 
-   * @effect
-   * @dependencies redrawCanvas
+   * @function handleExport
+   * @param {string} format - Image format (png, jpeg)
    */
-  useEffect(() => {
-    redrawCanvas();
-  }, [redrawCanvas]);
+  const handleExport = async (format: 'png' | 'jpeg'): Promise<void> => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    setIsExporting(true);
+    
+    try {
+      // Create a temporary canvas for export
+      const exportCanvas = document.createElement('canvas');
+      const ctx = exportCanvas.getContext('2d');
+      
+      if (!ctx) return;
+      
+      // Set export canvas size
+      exportCanvas.width = canvas.width;
+      exportCanvas.height = canvas.height;
+      
+      // Draw white background
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+      
+      // Apply the same transformations and draw all elements
+      ctx.save();
+      const dpr = window.devicePixelRatio || 1;
+      ctx.scale(1 / dpr, 1 / dpr);
+      ctx.translate(panOffset.x * zoomLevel * dpr, panOffset.y * zoomLevel * dpr);
+      ctx.scale(zoomLevel, zoomLevel);
+      
+      // Redraw all elements
+      redrawCanvasForExport(ctx, elements, dpr);
+      
+      ctx.restore();
+      
+      // Convert to data URL and trigger download
+      const mimeType = format === 'png' ? 'image/png' : 'image/jpeg';
+      const dataUrl = exportCanvas.toDataURL(mimeType, 1.0);
+      const link = document.createElement('a');
+      link.href = dataUrl;
+      link.download = `canvas-export-${Date.now()}.${format}`;
+      link.click();
+      
+    } catch (error) {
+      console.error('Export failed:', error);
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   /**
    * Handle zoom in operation
@@ -803,6 +1010,16 @@ export const CollaborativeCanvas = ({ roomId }: CollaborativeCanvasProps) => {
   const updateBrushConfig = (updates: Partial<BrushConfig>): void => {
     setBrushConfig(prev => ({ ...prev, ...updates }));
   };
+
+  /**
+   * Redraw canvas when dependencies change
+   * 
+   * @effect
+   * @dependencies redrawCanvas
+   */
+  useEffect(() => {
+    redrawCanvas();
+  }, [redrawCanvas]);
 
   return (
     <div 
@@ -870,7 +1087,7 @@ export const CollaborativeCanvas = ({ roomId }: CollaborativeCanvasProps) => {
             <Eraser size={20} />
           </button>
         </div>
-        
+
         {/* Color picker with opacity */}
         <ColorPicker
           value={color}
@@ -887,8 +1104,8 @@ export const CollaborativeCanvas = ({ roomId }: CollaborativeCanvasProps) => {
           brushType={brushType}
           onBrushTypeChange={setBrushType}
           pressureSensitive={brushConfig.pressureSensitive}
-          onPressureSensitiveChange={(enabled) => 
-            setBrushConfig(prev => ({ ...prev, pressureSensitive: enabled }))
+          onPressureSensitiveChange={(enabled) =>
+            setBrushConfig((prev) => ({ ...prev, pressureSensitive: enabled }))
           }
           strokeStyle={strokeStyle}
           onStrokeStyleChange={setStrokeStyle}
@@ -909,19 +1126,25 @@ export const CollaborativeCanvas = ({ roomId }: CollaborativeCanvasProps) => {
               title="Pressure Sensitivity"
               aria-pressed={brushConfig.pressureSensitive}
             >
-              {brushConfig.pressureSensitive ? <Zap size={16} /> : <ZapOff size={16} />}
+              {brushConfig.pressureSensitive ? (
+                <Zap size={16} />
+              ) : (
+                <ZapOff size={16} />
+              )}
             </button>
             <span className="text-xs text-slate-500 dark:text-slate-400">Pressure</span>
           </div>
-          
+
           <div className="flex flex-col items-center">
-            <input 
-              type="range" 
-              min="0" 
-              max="1" 
+            <input
+              type="range"
+              min="0"
+              max="1"
               step="0.1"
               value={brushConfig.smoothing}
-              onChange={(e) => updateBrushConfig({ smoothing: parseFloat(e.target.value) })}
+              onChange={(e) =>
+                updateBrushConfig({ smoothing: parseFloat(e.target.value) })
+              }
               className="w-16"
               aria-label="Brush smoothing"
               title="Smoothing"
@@ -929,10 +1152,10 @@ export const CollaborativeCanvas = ({ roomId }: CollaborativeCanvasProps) => {
             <span className="text-xs text-slate-500 dark:text-slate-400">Smooth</span>
           </div>
         </div>
-        
+
         {/* Canvas controls */}
         <div className="flex items-center gap-2">
-          <button 
+          <button
             onClick={() => setShowGrid(!showGrid)}
             className={`p-2 rounded-lg transition-colors ${
               showGrid 
@@ -945,9 +1168,9 @@ export const CollaborativeCanvas = ({ roomId }: CollaborativeCanvasProps) => {
           >
             <Grid size={20} />
           </button>
-          
+
           <div className="flex items-center gap-1">
-            <button 
+            <button
               onClick={handleZoomOut}
               className="p-1.5 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"
               aria-label="Zoom out"
@@ -958,7 +1181,7 @@ export const CollaborativeCanvas = ({ roomId }: CollaborativeCanvasProps) => {
             <span className="text-sm font-medium text-slate-700 dark:text-slate-300 w-12 text-center">
               {Math.round(zoomLevel * 100)}%
             </span>
-            <button 
+            <button
               onClick={handleZoomIn}
               className="p-1.5 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"
               aria-label="Zoom in"
@@ -967,8 +1190,8 @@ export const CollaborativeCanvas = ({ roomId }: CollaborativeCanvasProps) => {
               <Plus size={16} />
             </button>
           </div>
-          
-          <button 
+
+          <button
             onClick={handleResetZoom}
             className="px-3 py-1.5 text-sm bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 rounded-lg transition-colors"
             aria-label="Reset zoom"
@@ -977,13 +1200,13 @@ export const CollaborativeCanvas = ({ roomId }: CollaborativeCanvasProps) => {
             Reset
           </button>
         </div>
-        
+
         {/* Clear canvas button */}
-        <button 
+        <button
           onClick={() => {
             setElements([]);
             if (socketRef.current && roomId) {
-              socketRef.current.emit('clear-canvas', { roomId });
+              socketRef.current.emit("clear-canvas", { roomId });
             }
           }} 
           className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
@@ -992,13 +1215,35 @@ export const CollaborativeCanvas = ({ roomId }: CollaborativeCanvasProps) => {
         >
           <Trash2 size={20} />
         </button>
+
+        {/* Export button with dropdown */}
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => handleExport('png')}
+            disabled={isExporting}
+            className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            aria-label="Export as PNG"
+            title="Export as PNG"
+          >
+            <Download size={20} />
+          </button>
+          <button
+            onClick={() => handleExport('jpeg')}
+            disabled={isExporting}
+            className="px-2 py-1 text-xs bg-blue-50 hover:bg-blue-100 text-blue-600 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Export as JPEG"
+          >
+            {isExporting ? 'Exporting...' : 'JPEG'}
+          </button>
+        </div>
       </div>
 
       {/* Canvas info overlay */}
       <div className="absolute bottom-4 left-4 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm px-3 py-1.5 rounded-lg text-sm text-slate-600 dark:text-slate-400">
         {Math.round(canvasSize.width)} × {Math.round(canvasSize.height)} px
         {brushConfig.pressureSensitive && " • Pressure: On"}
-        {brushConfig.smoothing > 0 && ` • Smoothing: ${brushConfig.smoothing.toFixed(1)}`}
+        {brushConfig.smoothing > 0 &&
+          ` • Smoothing: ${brushConfig.smoothing.toFixed(1)}`}
       </div>
 
       {/* Main drawing canvas */}
@@ -1018,12 +1263,12 @@ export const CollaborativeCanvas = ({ roomId }: CollaborativeCanvasProps) => {
         // Don't show current user's cursor
         if (id === (user?.id || user?._id)) return null;
         return (
-          <div 
+          <div
             key={id}
             className="absolute pointer-events-none z-50 transition-all duration-75 ease-linear"
-            style={{ 
-              left: `${(pos.x / (window.devicePixelRatio || 1)) * zoomLevel + (panOffset.x * zoomLevel)}px`, 
-              top: `${(pos.y / (window.devicePixelRatio || 1)) * zoomLevel + (panOffset.y * zoomLevel)}px`
+            style={{
+              left: `${(pos.x / (window.devicePixelRatio || 1)) * zoomLevel + panOffset.x * zoomLevel}px`,
+              top: `${(pos.y / (window.devicePixelRatio || 1)) * zoomLevel + panOffset.y * zoomLevel}px`,
             }}
             aria-label={`${pos.username}'s cursor`}
           >

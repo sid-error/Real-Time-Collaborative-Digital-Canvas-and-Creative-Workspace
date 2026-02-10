@@ -1,4 +1,3 @@
-// src/components/ui/DeletionSurveyModal.tsx
 import React, { useState } from 'react';
 import { X, MessageSquare, Star, HelpCircle, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { Button } from './ui/Button';

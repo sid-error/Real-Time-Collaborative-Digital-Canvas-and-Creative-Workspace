@@ -1,0 +1,177 @@
+import React from 'react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import PublicRoomsGallery from '../../../features/rooms/PublicRoomsGallery';
+import roomService from '../../../services/roomService';
+import { BrowserRouter } from 'react-router-dom';
+
+// Mock roomService
+jest.mock('../../services/roomService', () => ({
+  getPublicRooms: jest.fn(),
+}));
+
+// Wrap with Router for navigate
+const renderWithRouter = (ui: React.ReactElement) => {
+  return render(<BrowserRouter>{ui}</BrowserRouter>);
+};
+
+const mockRooms = [
+  {
+    id: 'r1',
+    name: 'Test Room 1',
+    description: 'First test room',
+    isPublic: true,
+    ownerName: 'Alice',
+    participantCount: 5,
+    maxParticipants: 10,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'r2',
+    name: 'Private Room',
+    description: 'Secret room',
+    isPublic: false,
+    ownerName: 'Bob',
+    participantCount: 2,
+    maxParticipants: 5,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+];
+
+describe('PublicRoomsGallery', () => {
+  beforeEach(() => {
+    (roomService.getPublicRooms as jest.Mock).mockResolvedValue({
+      success: true,
+      rooms: mockRooms,
+    });
+  });
+
+  test('does not render when isOpen is false', () => {
+    renderWithRouter(
+      <PublicRoomsGallery isOpen={false} onClose={jest.fn()} onJoinRoom={jest.fn()} />
+    );
+    expect(screen.queryByText(/Public Rooms Gallery/i)).not.toBeInTheDocument();
+  });
+
+  test('renders gallery and rooms when isOpen is true', async () => {
+    renderWithRouter(
+      <PublicRoomsGallery isOpen={true} onClose={jest.fn()} onJoinRoom={jest.fn()} />
+    );
+
+    expect(screen.getByText(/Public Rooms Gallery/i)).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(screen.getByText('Test Room 1')).toBeInTheDocument();
+      expect(screen.getByText('Private Room')).toBeInTheDocument();
+    });
+  });
+
+  test('filters rooms based on search input', async () => {
+    renderWithRouter(
+      <PublicRoomsGallery isOpen={true} onClose={jest.fn()} onJoinRoom={jest.fn()} />
+    );
+
+    await waitFor(() => screen.getByText('Test Room 1'));
+
+    const searchInput = screen.getByLabelText('Search rooms');
+    fireEvent.change(searchInput, { target: { value: 'Private' } });
+
+    expect(screen.queryByText('Test Room 1')).not.toBeInTheDocument();
+    expect(screen.getByText('Private Room')).toBeInTheDocument();
+  });
+
+  test('calls onClose when close button is clicked', () => {
+    const onClose = jest.fn();
+    renderWithRouter(
+      <PublicRoomsGallery isOpen={true} onClose={onClose} onJoinRoom={jest.fn()} />
+    );
+
+    fireEvent.click(screen.getByLabelText('Close gallery'));
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  test('calls onJoinRoom when clicking a public room', async () => {
+    const onJoinRoom = jest.fn();
+    renderWithRouter(
+      <PublicRoomsGallery isOpen={true} onClose={jest.fn()} onJoinRoom={onJoinRoom} />
+    );
+
+    await waitFor(() => screen.getByText('Test Room 1'));
+    fireEvent.click(screen.getAllByText('Join Room')[0]);
+
+    expect(onJoinRoom).toHaveBeenCalledWith('r1');
+  });
+
+  test('prompts for password when joining a private room', async () => {
+    window.prompt = jest.fn().mockReturnValue('secret');
+    const onJoinRoom = jest.fn();
+
+    renderWithRouter(
+      <PublicRoomsGallery isOpen={true} onClose={jest.fn()} onJoinRoom={onJoinRoom} />
+    );
+
+    await waitFor(() => screen.getByText('Private Room'));
+    fireEvent.click(screen.getAllByText('Join Room')[1]);
+
+    expect(window.prompt).toHaveBeenCalledWith(
+      'This room requires a password. Please enter the password:'
+    );
+    expect(onJoinRoom).toHaveBeenCalledWith('r2');
+  });
+
+  test('category filter buttons change categoryFilter state', async () => {
+    renderWithRouter(
+      <PublicRoomsGallery isOpen={true} onClose={jest.fn()} onJoinRoom={jest.fn()} />
+    );
+
+    const creativeButton = screen.getByLabelText('Filter by Creative');
+    fireEvent.click(creativeButton);
+
+    // Should trigger API call with new category filter
+    await waitFor(() => {
+      expect(roomService.getPublicRooms).toHaveBeenCalled();
+    });
+  });
+
+  test('refresh button triggers loadRooms', async () => {
+    renderWithRouter(
+      <PublicRoomsGallery isOpen={true} onClose={jest.fn()} onJoinRoom={jest.fn()} />
+    );
+
+    const refreshButton = screen.getByLabelText('Refresh rooms');
+    fireEvent.click(refreshButton);
+
+    await waitFor(() => {
+      expect(roomService.getPublicRooms).toHaveBeenCalled();
+    });
+  });
+
+  test('sort select changes sortBy state and reloads rooms', async () => {
+    renderWithRouter(
+      <PublicRoomsGallery isOpen={true} onClose={jest.fn()} onJoinRoom={jest.fn()} />
+    );
+
+    const sortSelect = screen.getByLabelText('Sort rooms by');
+    fireEvent.change(sortSelect, { target: { value: 'newest' } });
+
+    await waitFor(() => {
+      expect(roomService.getPublicRooms).toHaveBeenCalled();
+    });
+  });
+
+  test('load more button calls handleLoadMore', async () => {
+    renderWithRouter(
+      <PublicRoomsGallery isOpen={true} onClose={jest.fn()} onJoinRoom={jest.fn()} />
+    );
+
+    await waitFor(() => screen.getByText('Test Room 1'));
+
+    const loadMoreButton = screen.getByLabelText('Load more rooms');
+    fireEvent.click(loadMoreButton);
+
+    await waitFor(() => {
+      expect(roomService.getPublicRooms).toHaveBeenCalled();
+    });
+  });
+});

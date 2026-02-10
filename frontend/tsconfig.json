@@ -20,9 +20,12 @@
     "declarationMap": true,
     "sourceMap": true,
     "emitDeclarationOnly": false,
-    "removeComments": false, // Keep JSDoc comments
+    "removeComments": false,
     "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true
+    "allowSyntheticDefaultImports": true,
+
+    // <--- Add this for Vitest support
+    "types": ["vitest/globals", "node"]
   },
   "include": [
     "src",

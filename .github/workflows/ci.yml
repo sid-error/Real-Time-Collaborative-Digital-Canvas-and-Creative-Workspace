@@ -22,7 +22,7 @@ jobs:
     - name: Install Dependencies
       run: |
         cd backend
-        npm ci
+        npm install
     # - name: Test
     #   run: |
     #     cd backend
@@ -39,7 +39,7 @@ jobs:
     - name: Install Dependencies
       run: |
         cd frontend
-        npm ci
+        npm install
     - name: Lint
       run: |
         cd frontend

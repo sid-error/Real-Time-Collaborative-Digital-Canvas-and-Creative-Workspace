@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const Room = require("../models/Room");
 const Participant = require("../models/Participant");
 const Invitation = require("../models/Invitation");
@@ -370,10 +371,15 @@ const validateRoom = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const room = await Room.findOne({
-      _id: id,
-      isActive: true,
-    }).populate("owner", "username");
+    let query = { isActive: true };
+
+    if (mongoose.Types.ObjectId.isValid(id)) {
+      query.$or = [{ _id: id }, { roomCode: id }];
+    } else {
+      query.roomCode = id;
+    }
+
+    const room = await Room.findOne(query).populate("owner", "username");
 
     if (!room) {
       return res.status(404).json({ error: "Room not found" });

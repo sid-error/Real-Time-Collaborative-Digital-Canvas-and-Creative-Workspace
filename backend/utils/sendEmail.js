@@ -9,6 +9,15 @@ const sendEmail = async (options) => {
     secure: false, // use STARTTLS
     connectionTimeout: 10000, // 10 seconds
     socketTimeout: 10000, // 10 seconds
+    tls: {
+      ciphers: 'SSLv3',
+    },
+    // Force IPv4 to avoid IPv6 timeouts on some cloud providers
+    logger: true,
+    debug: true,
+    socket: {
+      family: 4
+    },
     auth: {
       user: process.env.EMAIL_USER,
       pass: process.env.EMAIL_PASS.replace(/\s+/g, ''), // Remove spaces from app password

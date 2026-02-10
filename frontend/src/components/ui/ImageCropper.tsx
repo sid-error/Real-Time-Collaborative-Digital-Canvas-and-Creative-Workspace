@@ -1,15 +1,75 @@
-// src/components/ui/ImageCropper.tsx
 import React, { useState, useRef, useEffect } from 'react';
 import { Crop, RotateCw, ZoomIn, ZoomOut, Check, X } from 'lucide-react';
 
+/**
+ * Interface defining the properties for the ImageCropper component
+ * 
+ * @interface ImageCropperProps
+ * @property {string} imageSrc - Source URL of the image to be cropped
+ * @property {(croppedImage: string) => void} onCropComplete - Callback triggered when cropping is complete with the cropped image data URL
+ * @property {() => void} onCancel - Callback triggered when the user cancels cropping
+ * @property {number} [aspectRatio=1] - Aspect ratio for cropping (width/height). undefined for free-form cropping
+ * @property {boolean} [circularCrop=true] - Whether to apply circular cropping mask (true) or rectangular (false)
+ */
 interface ImageCropperProps {
+  /** Source URL of the image to be cropped */
   imageSrc: string;
+  /** Callback triggered when cropping is complete with the cropped image data URL */
   onCropComplete: (croppedImage: string) => void;
+  /** Callback triggered when the user cancels cropping */
   onCancel: () => void;
-  aspectRatio?: number; // width/height ratio, undefined for free crop
+  /** Aspect ratio for cropping (width/height). undefined for free-form cropping */
+  aspectRatio?: number;
+  /** Whether to apply circular cropping mask (true) or rectangular (false) */
   circularCrop?: boolean;
 }
 
+/**
+ * ImageCropper Component
+ * 
+ * @component
+ * @description
+ * A modal image cropping tool that allows users to crop, zoom, rotate, and adjust images
+ * with real-time preview. Supports both circular and rectangular cropping with adjustable
+ * crop size and aspect ratio constraints.
+ * 
+ * @features
+ * - **Interactive Cropping**: Drag to position image within crop area
+ * - **Zoom Controls**: Adjust image scale with zoom in/out buttons
+ * - **Rotation**: Rotate image in 90-degree increments
+ * - **Adjustable Crop Size**: Dynamic crop area sizing
+ * - **Real-time Preview**: Live preview of cropped result
+ * - **Circular/Rectangular Options**: Toggle between circular and square crops
+ * - **Aspect Ratio Lock**: Maintain specific aspect ratios if specified
+ * 
+ * @example
+ * ```tsx
+ * // Basic usage with circular crop
+ * <ImageCropper
+ *   imageSrc={imageUrl}
+ *   onCropComplete={(croppedImage) => setProfilePicture(croppedImage)}
+ *   onCancel={() => setIsCropping(false)}
+ * />
+ * 
+ * // Rectangular crop with 16:9 aspect ratio
+ * <ImageCropper
+ *   imageSrc={imageUrl}
+ *   onCropComplete={handleCropComplete}
+ *   onCancel={handleCancel}
+ *   aspectRatio={16/9}
+ *   circularCrop={false}
+ * />
+ * ```
+ * 
+ * @param {ImageCropperProps} props - Component properties
+ * @param {string} props.imageSrc - Source image URL
+ * @param {(croppedImage: string) => void} props.onCropComplete - Crop completion callback
+ * @param {() => void} props.onCancel - Cancel callback
+ * @param {number} [props.aspectRatio=1] - Aspect ratio constraint
+ * @param {boolean} [props.circularCrop=true] - Circular cropping flag
+ * 
+ * @returns {JSX.Element} Modal image cropping interface
+ */
 const ImageCropper: React.FC<ImageCropperProps> = ({
   imageSrc,
   onCropComplete,
@@ -17,18 +77,37 @@ const ImageCropper: React.FC<ImageCropperProps> = ({
   aspectRatio = 1,
   circularCrop = true
 }) => {
+  // Reference to the canvas element used for final cropped image rendering
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  
+  // Reference to the image element
   const imageRef = useRef<HTMLImageElement>(null);
+  
+  // Reference to the container div for positioning calculations
   const containerRef = useRef<HTMLDivElement>(null);
   
-  const [scale, setScale] = useState(1);
-  const [rotation, setRotation] = useState(0);
-  const [position, setPosition] = useState({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  const [cropSize, setCropSize] = useState(200);
+  // Image scale/zoom level (1 = 100%)
+  const [scale, setScale] = useState<number>(1);
+  
+  // Image rotation in degrees
+  const [rotation, setRotation] = useState<number>(0);
+  
+  // Image position relative to container
+  const [position, setPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  
+  // Flag indicating if the user is currently dragging the image
+  const [isDragging, setIsDragging] = useState<boolean>(false);
+  
+  // Starting position when drag begins
+  const [dragStart, setDragStart] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  
+  // Size of the crop area in pixels
+  const [cropSize, setCropSize] = useState<number>(200);
 
-  // Initialize image
+  /**
+   * Initialize the image and set up initial positioning
+   * Runs when component mounts or image source changes
+   */
   useEffect(() => {
     if (imageRef.current) {
       const img = new Image();
@@ -38,7 +117,7 @@ const ImageCropper: React.FC<ImageCropperProps> = ({
         const minDimension = Math.min(img.width, img.height);
         setCropSize(Math.min(minDimension, 300));
         
-        // Center the image
+        // Center the image within the container
         if (containerRef.current) {
           const containerRect = containerRef.current.getBoundingClientRect();
           setPosition({
@@ -50,7 +129,13 @@ const ImageCropper: React.FC<ImageCropperProps> = ({
     }
   }, [imageSrc, scale]);
 
-  const handleMouseDown = (e: React.MouseEvent) => {
+  /**
+   * Handle mouse down event to start dragging the image
+   * 
+   * @function handleMouseDown
+   * @param {React.MouseEvent} e - Mouse event
+   */
+  const handleMouseDown = (e: React.MouseEvent): void => {
     setIsDragging(true);
     setDragStart({
       x: e.clientX - position.x,
@@ -58,13 +143,19 @@ const ImageCropper: React.FC<ImageCropperProps> = ({
     });
   };
 
-  const handleMouseMove = (e: React.MouseEvent) => {
+  /**
+   * Handle mouse move event to drag the image
+   * 
+   * @function handleMouseMove
+   * @param {React.MouseEvent} e - Mouse event
+   */
+  const handleMouseMove = (e: React.MouseEvent): void => {
     if (!isDragging) return;
     
     const newX = e.clientX - dragStart.x;
     const newY = e.clientY - dragStart.y;
     
-    // Boundary checks
+    // Boundary checks to prevent dragging image outside container
     if (containerRef.current && imageRef.current) {
       const containerRect = containerRef.current.getBoundingClientRect();
       const imgWidth = imageRef.current.width * scale;
@@ -80,41 +171,72 @@ const ImageCropper: React.FC<ImageCropperProps> = ({
     }
   };
 
-  const handleMouseUp = () => {
+  /**
+   * Handle mouse up event to stop dragging
+   * 
+   * @function handleMouseUp
+   */
+  const handleMouseUp = (): void => {
     setIsDragging(false);
   };
 
-  const handleZoomIn = () => {
-    setScale(prev => Math.min(prev + 0.1, 3));
+  /**
+   * Zoom in by increasing the scale
+   * 
+   * @function handleZoomIn
+   */
+  const handleZoomIn = (): void => {
+    setScale(prev => Math.min(prev + 0.1, 3)); // Max zoom: 300%
   };
 
-  const handleZoomOut = () => {
-    setScale(prev => Math.max(prev - 0.1, 0.5));
+  /**
+   * Zoom out by decreasing the scale
+   * 
+   * @function handleZoomOut
+   */
+  const handleZoomOut = (): void => {
+    setScale(prev => Math.max(prev - 0.1, 0.5)); // Min zoom: 50%
   };
 
-  const handleRotate = () => {
+  /**
+   * Rotate the image 90 degrees clockwise
+   * 
+   * @function handleRotate
+   */
+  const handleRotate = (): void => {
     setRotation(prev => (prev + 90) % 360);
   };
 
-  const handleCropSizeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  /**
+   * Handle crop size change from the range input
+   * 
+   * @function handleCropSizeChange
+   * @param {React.ChangeEvent<HTMLInputElement>} e - Change event
+   */
+  const handleCropSizeChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
     setCropSize(parseInt(e.target.value));
   };
 
-  const handleCrop = () => {
+  /**
+   * Perform the cropping operation and trigger the completion callback
+   * 
+   * @function handleCrop
+   */
+  const handleCrop = (): void => {
     if (!canvasRef.current || !imageRef.current) return;
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Set canvas size to crop size
+    // Set canvas size to match crop dimensions
     canvas.width = cropSize;
     canvas.height = cropSize;
 
-    // Clear canvas
+    // Clear any existing content on the canvas
     ctx.clearRect(0, 0, cropSize, cropSize);
 
-    // Create circular mask if needed
+    // Create circular clipping path if circular crop is enabled
     if (circularCrop) {
       ctx.beginPath();
       ctx.arc(cropSize / 2, cropSize / 2, cropSize / 2, 0, Math.PI * 2);
@@ -122,34 +244,39 @@ const ImageCropper: React.FC<ImageCropperProps> = ({
       ctx.clip();
     }
 
-    // Calculate source coordinates for cropping
+    // Calculate source coordinates for cropping based on current position and scale
     const img = imageRef.current;
     const containerRect = containerRef.current?.getBoundingClientRect();
     
     if (!containerRect) return;
 
-    // Convert position relative to image
+    // Convert screen position to image coordinates
     const sourceX = -position.x / scale;
     const sourceY = -position.y / scale;
     const sourceWidth = cropSize / scale;
     const sourceHeight = cropSize / scale;
 
-    // Draw cropped image
+    // Draw the cropped portion of the image onto the canvas
     ctx.drawImage(
       img,
-      sourceX, sourceY, sourceWidth, sourceHeight, // Source rectangle
-      0, 0, cropSize, cropSize // Destination rectangle
+      sourceX, sourceY, sourceWidth, sourceHeight, // Source rectangle (portion of original image)
+      0, 0, cropSize, cropSize                     // Destination rectangle (entire canvas)
     );
 
-    // Get cropped image as data URL
+    // Convert canvas content to data URL and pass to parent component
     const croppedImageUrl = canvas.toDataURL('image/png');
     onCropComplete(croppedImageUrl);
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 dark:bg-black/90 flex items-center justify-center z-50 p-4">
+    <div 
+      className="fixed inset-0 bg-black/80 dark:bg-black/90 flex items-center justify-center z-50 p-4"
+      role="dialog"
+      aria-label="Image cropper"
+      aria-modal="true"
+    >
       <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
-        {/* Header */}
+        {/* Header section with title and close button */}
         <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-800">
           <div className="flex items-center gap-3">
             <Crop className="w-5 h-5 text-blue-600 dark:text-blue-400" />
@@ -166,10 +293,10 @@ const ImageCropper: React.FC<ImageCropperProps> = ({
           </button>
         </div>
 
-        {/* Content */}
+        {/* Main content area */}
         <div className="p-6">
           <div className="flex flex-col lg:flex-row gap-6">
-            {/* Crop area */}
+            {/* Left column: Crop area and size controls */}
             <div className="flex-1">
               <div className="mb-4">
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
@@ -183,6 +310,10 @@ const ImageCropper: React.FC<ImageCropperProps> = ({
                     value={cropSize}
                     onChange={handleCropSizeChange}
                     className="flex-1 h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer"
+                    aria-label="Adjust crop size"
+                    aria-valuemin={100}
+                    aria-valuemax={400}
+                    aria-valuenow={cropSize}
                   />
                   <span className="text-sm font-medium text-slate-700 dark:text-slate-300 min-w-[60px]">
                     {cropSize}px
@@ -190,6 +321,7 @@ const ImageCropper: React.FC<ImageCropperProps> = ({
                 </div>
               </div>
 
+              {/* Interactive crop area container */}
               <div
                 ref={containerRef}
                 className="relative w-full h-96 bg-slate-100 dark:bg-slate-800 rounded-xl overflow-hidden border-2 border-slate-300 dark:border-slate-700"
@@ -197,8 +329,10 @@ const ImageCropper: React.FC<ImageCropperProps> = ({
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}
                 onMouseLeave={handleMouseUp}
+                role="region"
+                aria-label="Crop area. Drag to position the image."
               >
-                {/* Image container */}
+                {/* Transformable image container */}
                 <div
                   className="absolute"
                   style={{
@@ -210,7 +344,7 @@ const ImageCropper: React.FC<ImageCropperProps> = ({
                   <img
                     ref={imageRef}
                     src={imageSrc}
-                    alt="To crop"
+                    alt="Image to crop"
                     className="max-w-none"
                     style={{
                       width: 'auto',
@@ -220,23 +354,24 @@ const ImageCropper: React.FC<ImageCropperProps> = ({
                   />
                 </div>
 
-                {/* Crop overlay */}
+                {/* Crop overlay with mask effect */}
                 <div
                   className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none"
                   style={{
                     width: `${cropSize}px`,
                     height: `${cropSize}px`,
                     border: '2px dashed white',
-                    boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.5)',
+                    boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.5)', // Creates the mask effect
                     borderRadius: circularCrop ? '50%' : '8px'
                   }}
+                  aria-label="Crop boundary"
                 />
               </div>
             </div>
 
-            {/* Controls and preview */}
+            {/* Right column: Controls and preview */}
             <div className="lg:w-80 space-y-6">
-              {/* Controls */}
+              {/* Image adjustment controls */}
               <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
                 <h4 className="font-medium text-slate-800 dark:text-white mb-4">
                   Adjust Image
@@ -245,6 +380,7 @@ const ImageCropper: React.FC<ImageCropperProps> = ({
                   <button
                     onClick={handleZoomIn}
                     className="flex items-center justify-center gap-2 p-3 bg-white dark:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors"
+                    aria-label="Zoom in"
                   >
                     <ZoomIn className="w-4 h-4" />
                     <span className="text-sm">Zoom In</span>
@@ -252,6 +388,7 @@ const ImageCropper: React.FC<ImageCropperProps> = ({
                   <button
                     onClick={handleZoomOut}
                     className="flex items-center justify-center gap-2 p-3 bg-white dark:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors"
+                    aria-label="Zoom out"
                   >
                     <ZoomOut className="w-4 h-4" />
                     <span className="text-sm">Zoom Out</span>
@@ -259,6 +396,7 @@ const ImageCropper: React.FC<ImageCropperProps> = ({
                   <button
                     onClick={handleRotate}
                     className="flex items-center justify-center gap-2 p-3 bg-white dark:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors"
+                    aria-label="Rotate 90 degrees"
                   >
                     <RotateCw className="w-4 h-4" />
                     <span className="text-sm">Rotate 90°</span>
@@ -274,7 +412,7 @@ const ImageCropper: React.FC<ImageCropperProps> = ({
                 </div>
               </div>
 
-              {/* Preview */}
+              {/* Cropped image preview */}
               <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4">
                 <h4 className="font-medium text-slate-800 dark:text-white mb-4">
                   Preview
@@ -286,7 +424,12 @@ const ImageCropper: React.FC<ImageCropperProps> = ({
                       borderRadius: circularCrop ? '50%' : '16px'
                     }}
                   >
-                    <canvas ref={canvasRef} className="w-full h-full" />
+                    {/* Canvas element for displaying cropped preview */}
+                    <canvas 
+                      ref={canvasRef} 
+                      className="w-full h-full" 
+                      aria-label="Cropped image preview"
+                    />
                   </div>
                   <p className="text-sm text-slate-500 dark:text-slate-400 mt-3 text-center">
                     {circularCrop ? 'Circular profile picture' : 'Square profile picture'}
@@ -297,17 +440,19 @@ const ImageCropper: React.FC<ImageCropperProps> = ({
           </div>
         </div>
 
-        {/* Footer */}
+        {/* Footer with action buttons */}
         <div className="flex justify-end gap-3 p-6 border-t border-slate-200 dark:border-slate-800">
           <button
             onClick={onCancel}
             className="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+            aria-label="Cancel cropping"
           >
             Cancel
           </button>
           <button
             onClick={handleCrop}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+            aria-label="Apply crop"
           >
             <Check className="w-4 h-4" />
             Apply Crop

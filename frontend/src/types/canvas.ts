@@ -97,3 +97,22 @@ export interface DrawingElement {
    */
   brushProperties?: BrushProperties;
 }
+
+export type BrushType = 'pencil' | 'brush' | 'marker' | 'airbrush' | 'highlighter';
+
+export interface BrushProperties {
+  color: string;
+  width: number;
+  opacity: number;
+  type: BrushType;
+  texture?: string; // URL or data URI for brush texture
+  spacing?: number; // Spacing between brush stamps
+  scatter?: number; // Random scatter of brush stamps
+}
+
+export interface StrokeStyle {
+  type: 'solid' | 'dashed' | 'dotted';
+  dashArray?: number[]; // For custom dash patterns
+  lineCap?: 'butt' | 'round' | 'square';
+  lineJoin?: 'bevel' | 'round' | 'miter';
+}

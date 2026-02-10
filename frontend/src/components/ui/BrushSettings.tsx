@@ -6,6 +6,20 @@ import {
 } from 'lucide-react';
 import type { BrushType, StrokeStyle } from '../../types/canvas';
 
+/**
+ * Props for the BrushSettings component
+ * 
+ * @interface BrushSettingsProps
+ * @property {number} strokeWidth - Current stroke width in pixels
+ * @property {(width: number) => void} onStrokeWidthChange - Callback when stroke width changes
+ * @property {BrushType} brushType - Current brush type
+ * @property {(type: BrushType) => void} onBrushTypeChange - Callback when brush type changes
+ * @property {boolean} pressureSensitive - Whether pressure sensitivity is enabled
+ * @property {(enabled: boolean) => void} onPressureSensitiveChange - Callback for pressure sensitivity toggle
+ * @property {StrokeStyle} strokeStyle - Current stroke style configuration
+ * @property {(style: StrokeStyle) => void} onStrokeStyleChange - Callback when stroke style changes
+ * @property {string} [className] - Additional CSS class names for the container
+ */
 interface BrushSettingsProps {
   strokeWidth: number;
   onStrokeWidthChange: (width: number) => void;
@@ -18,6 +32,36 @@ interface BrushSettingsProps {
   className?: string;
 }
 
+/**
+ * BrushSettings Component
+ * 
+ * @component
+ * @description
+ * A comprehensive brush settings panel for a drawing application that allows users to
+ * configure brush type, stroke width, stroke style, line caps, and pressure sensitivity.
+ * 
+ * Features:
+ * - Multiple brush types (Pencil, Brush, Marker, Airbrush, Highlighter)
+ * - Adjustable stroke width with visual preview
+ * - Stroke styles (Solid, Dashed, Dotted)
+ * - Line cap controls (Butt, Round, Square)
+ * - Pressure sensitivity toggle
+ * - Interactive preview of current settings
+ * 
+ * @example
+ * ```tsx
+ * <BrushSettings
+ *   strokeWidth={5}
+ *   onStrokeWidthChange={(width) => setStrokeWidth(width)}
+ *   brushType="pencil"
+ *   onBrushTypeChange={(type) => setBrushType(type)}
+ *   pressureSensitive={true}
+ *   onPressureSensitiveChange={(enabled) => setPressureSensitive(enabled)}
+ *   strokeStyle={{ type: 'solid', lineCap: 'round' }}
+ *   onStrokeStyleChange={(style) => setStrokeStyle(style)}
+ * />
+ * ```
+ */
 const BrushSettings: React.FC<BrushSettingsProps> = ({
   strokeWidth,
   onStrokeWidthChange,
@@ -29,8 +73,20 @@ const BrushSettings: React.FC<BrushSettingsProps> = ({
   onStrokeStyleChange,
   className = ''
 }) => {
+  // State to control dropdown visibility
   const [isOpen, setIsOpen] = useState(false);
 
+  /**
+   * Configuration array for available brush types
+   * 
+   * @constant {Array<Object>} brushTypes
+   * @property {BrushType} type - Unique identifier for the brush
+   * @property {string} label - Display name for the brush
+   * @property {React.ReactNode} icon - Icon component for the brush
+   * @property {string} description - Brief description of brush characteristics
+   * @property {number} minWidth - Minimum stroke width for this brush type
+   * @property {number} maxWidth - Maximum stroke width for this brush type
+   */
   const brushTypes: Array<{
     type: BrushType;
     label: string;
@@ -81,6 +137,15 @@ const BrushSettings: React.FC<BrushSettingsProps> = ({
     }
   ];
 
+  /**
+   * Configuration array for stroke styles
+   * 
+   * @constant {Array<Object>} strokeStyles
+   * @property {StrokeStyle['type']} type - Type of stroke pattern
+   * @property {string} label - Display name for the stroke style
+   * @property {React.ReactNode} icon - Icon component for the stroke style
+   * @property {number[]} pattern - Dash array pattern for dashed/dotted strokes
+   */
   const strokeStyles: Array<{
     type: StrokeStyle['type'];
     label: string;
@@ -107,6 +172,14 @@ const BrushSettings: React.FC<BrushSettingsProps> = ({
     }
   ];
 
+  /**
+   * Configuration array for line cap options
+   * 
+   * @constant {Array<Object>} lineCaps
+   * @property {'butt' | 'round' | 'square'} value - CSS line-cap value
+   * @property {string} label - Display name for the line cap
+   * @property {React.ReactNode} icon - Icon representing the line cap shape
+   */
   const lineCaps: Array<{
     value: 'butt' | 'round' | 'square';
     label: string;
@@ -129,11 +202,15 @@ const BrushSettings: React.FC<BrushSettingsProps> = ({
     }
   ];
 
+  // Find the currently selected brush configuration
   const currentBrush = brushTypes.find(b => b.type === brushType);
 
   return (
     <div className={`relative ${className}`}>
-      {/* Brush preview button */}
+      {/* 
+        Brush preview button - Toggles the settings dropdown 
+        Shows current brush type and stroke width
+      */}
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
@@ -141,7 +218,7 @@ const BrushSettings: React.FC<BrushSettingsProps> = ({
         aria-label="Open brush settings"
       >
         <div className="relative">
-          {/* Brush preview */}
+          {/* Visual representation of current brush size */}
           <div className="w-8 h-8 flex items-center justify-center">
             <div 
               className="rounded-full"
@@ -164,10 +241,10 @@ const BrushSettings: React.FC<BrushSettingsProps> = ({
         </div>
       </button>
 
-      {/* Brush settings dropdown */}
+      {/* Brush settings dropdown - Appears when isOpen is true */}
       {isOpen && (
         <div className="absolute left-0 mt-2 w-80 bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 p-4 z-50">
-          {/* Brush type selection */}
+          {/* Brush type selection section */}
           <div className="mb-4">
             <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">
               Brush Type
@@ -179,7 +256,7 @@ const BrushSettings: React.FC<BrushSettingsProps> = ({
                   type="button"
                   onClick={() => {
                     onBrushTypeChange(brush.type);
-                    // Adjust stroke width to fit new brush type
+                    // Adjust stroke width to fit within new brush type's valid range
                     if (strokeWidth < brush.minWidth) {
                       onStrokeWidthChange(brush.minWidth);
                     } else if (strokeWidth > brush.maxWidth) {
@@ -203,7 +280,7 @@ const BrushSettings: React.FC<BrushSettingsProps> = ({
             </div>
           </div>
 
-          {/* Stroke width control */}
+          {/* Stroke width control section */}
           <div className="mb-4">
             <div className="flex justify-between items-center mb-2">
               <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300">
@@ -222,7 +299,7 @@ const BrushSettings: React.FC<BrushSettingsProps> = ({
             </div>
             
             <div className="space-y-3">
-              {/* Width slider */}
+              {/* Range slider for precise width control */}
               <input
                 type="range"
                 min={currentBrush?.minWidth || 1}
@@ -232,7 +309,7 @@ const BrushSettings: React.FC<BrushSettingsProps> = ({
                 className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-full appearance-none cursor-pointer"
               />
               
-              {/* Quick width presets */}
+              {/* Quick preset buttons for common stroke widths */}
               <div className="flex justify-between">
                 {[1, 3, 5, 10, 20].map((width) => (
                   <button
@@ -252,7 +329,7 @@ const BrushSettings: React.FC<BrushSettingsProps> = ({
             </div>
           </div>
 
-          {/* Stroke style */}
+          {/* Stroke style selection section */}
           <div className="mb-4">
             <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">
               Stroke Style
@@ -283,9 +360,10 @@ const BrushSettings: React.FC<BrushSettingsProps> = ({
             </div>
           </div>
 
-          {/* Line cap/join settings */}
+          {/* Line cap and pressure sensitivity settings */}
           <div className="mb-4">
             <div className="grid grid-cols-2 gap-4">
+              {/* Line cap selection */}
               <div>
                 <h4 className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">
                   Line Cap
@@ -312,6 +390,7 @@ const BrushSettings: React.FC<BrushSettingsProps> = ({
                 </div>
               </div>
               
+              {/* Pressure sensitivity toggle */}
               <div>
                 <h4 className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">
                   Pressure Sensitivity
@@ -332,7 +411,7 @@ const BrushSettings: React.FC<BrushSettingsProps> = ({
             </div>
           </div>
 
-          {/* Brush preview */}
+          {/* Interactive brush preview section */}
           <div className="pt-3 border-t border-slate-200 dark:border-slate-700">
             <div className="flex items-center justify-between mb-2">
               <h4 className="text-sm font-medium text-slate-700 dark:text-slate-300">
@@ -344,7 +423,7 @@ const BrushSettings: React.FC<BrushSettingsProps> = ({
             </div>
             <div className="h-16 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-3">
               <div className="relative w-full h-full">
-                {/* Preview stroke */}
+                {/* SVG path showing current brush settings applied */}
                 <svg width="100%" height="100%" className="overflow-visible">
                   <path
                     d="M10,30 Q50,10 90,30 T170,30"
@@ -361,7 +440,7 @@ const BrushSettings: React.FC<BrushSettingsProps> = ({
             </div>
           </div>
 
-          {/* Close button */}
+          {/* Close dropdown button */}
           <button
             type="button"
             onClick={() => setIsOpen(false)}

@@ -1,9 +1,23 @@
-// src/components/ui/ThemeSelector.tsx
 import React, { useState, useEffect } from 'react';
 import { Sun, Moon, Monitor, Contrast, Check, Palette as PaletteIcon } from 'lucide-react';
 
+/**
+ * Supported theme types for the application
+ * 
+ * @typedef {'light' | 'dark' | 'system' | 'high-contrast'} ThemeType
+ */
 export type ThemeType = 'light' | 'dark' | 'system' | 'high-contrast';
 
+/**
+ * Interface defining a theme option for display and selection
+ * 
+ * @interface ThemeOption
+ * @property {ThemeType} id - Unique identifier for the theme
+ * @property {string} name - Display name for the theme
+ * @property {string} description - Brief description of the theme
+ * @property {React.ReactNode} icon - Icon component for visual representation
+ * @property {string} color - Tailwind CSS color class for theme indicator
+ */
 interface ThemeOption {
   id: ThemeType;
   name: string;
@@ -12,19 +26,93 @@ interface ThemeOption {
   color: string;
 }
 
+/**
+ * Interface defining the properties for the ThemeSelector component
+ * 
+ * @interface ThemeSelectorProps
+ * @property {ThemeType} currentTheme - Currently active theme
+ * @property {(theme: ThemeType) => void} onThemeChange - Callback when theme changes
+ * @property {string} [className=''] - Additional CSS classes for the container
+ */
 interface ThemeSelectorProps {
+  /** Currently active theme */
   currentTheme: ThemeType;
+  /** Callback when theme changes */
   onThemeChange: (theme: ThemeType) => void;
+  /** Additional CSS classes for the container */
   className?: string;
 }
 
+/**
+ * Array of valid theme identifiers for runtime validation
+ * 
+ * @constant {ThemeType[]} VALID_THEMES
+ */
 const VALID_THEMES: ThemeType[] = ['light', 'dark', 'system', 'high-contrast'];
 
+/**
+ * ThemeSelector Component
+ * 
+ * @component
+ * @description
+ * A comprehensive theme selection component that allows users to switch between
+ * light, dark, system, and high-contrast themes. Provides visual previews,
+ * persists selections to localStorage, and respects system theme preferences.
+ * 
+ * @features
+ * - **Multiple Themes**: Light, dark, system, and high-contrast options
+ * - **Visual Previews**: Miniature UI previews for each theme
+ * - **Persistence**: Saves theme selection to localStorage
+ * - **System Integration**: Automatically follows system theme changes when in system mode
+ * - **Accessibility**: High-contrast mode for visually impaired users
+ * - **Visual Feedback**: Clear indication of active theme
+ * - **Responsive Design**: Adapts layout for different screen sizes
+ * 
+ * @behavior
+ * 1. Initializes theme from localStorage or uses provided currentTheme
+ * 2. Applies theme to document root element
+ * 3. Listens for system theme changes when in 'system' mode
+ * 4. Persists changes to localStorage
+ * 5. Updates parent component via onThemeChange callback
+ * 
+ * @example
+ * ```tsx
+ * // Basic usage with state management
+ * const [theme, setTheme] = useState<ThemeType>('system');
+ * 
+ * <ThemeSelector
+ *   currentTheme={theme}
+ *   onThemeChange={setTheme}
+ *   className="w-full max-w-md"
+ * />
+ * 
+ * // In a settings panel
+ * <div className="settings-section">
+ *   <h2>Appearance</h2>
+ *   <ThemeSelector
+ *     currentTheme={userSettings.theme}
+ *     onThemeChange={(newTheme) => updateSettings({ theme: newTheme })}
+ *   />
+ * </div>
+ * ```
+ * 
+ * @param {ThemeSelectorProps} props - Component properties
+ * @param {ThemeType} props.currentTheme - Currently active theme
+ * @param {(theme: ThemeType) => void} props.onThemeChange - Theme change handler
+ * @param {string} [props.className=''] - Additional CSS classes
+ * 
+ * @returns {JSX.Element} Theme selection interface
+ */
 const ThemeSelector: React.FC<ThemeSelectorProps> = ({
   currentTheme,
   onThemeChange,
   className = ''
 }) => {
+  /**
+   * Array of available theme options with metadata
+   * 
+   * @constant {ThemeOption[]} themeOptions
+   */
   const themeOptions: ThemeOption[] = [
     {
       id: 'light',
@@ -56,12 +144,25 @@ const ThemeSelector: React.FC<ThemeSelectorProps> = ({
     }
   ];
 
-  const applyThemeToDocument = (theme: ThemeType) => {
+  /**
+   * Applies the specified theme to the document root element
+   * Updates CSS classes and persists to localStorage
+   * 
+   * @function applyThemeToDocument
+   * @param {ThemeType} theme - Theme to apply
+   * 
+   * @remarks
+   * This function directly manipulates the document.documentElement classList
+   * to apply the theme-specific CSS classes that should be defined in your
+   * global CSS/Tailwind configuration.
+   */
+  const applyThemeToDocument = (theme: ThemeType): void => {
     const html = document.documentElement;
 
-    // Remove all theme classes
+    // Remove all theme classes to ensure clean state
     html.classList.remove('light', 'dark', 'high-contrast');
 
+    // Apply appropriate classes based on theme selection
     switch (theme) {
       case 'light':
         html.classList.add('light');
@@ -73,11 +174,12 @@ const ThemeSelector: React.FC<ThemeSelectorProps> = ({
 
       case 'high-contrast':
         html.classList.add('high-contrast');
-        html.classList.add('dark'); // High contrast usually based on dark
+        html.classList.add('dark'); // High contrast usually based on dark theme
         break;
 
       case 'system':
       default:
+        // Use system preference
         if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
           html.classList.add('dark');
         } else {
@@ -86,53 +188,89 @@ const ThemeSelector: React.FC<ThemeSelectorProps> = ({
         break;
     }
 
-    // Save to localStorage
+    // Persist theme choice to localStorage for future sessions
     localStorage.setItem('theme', theme);
   };
 
-  // ✅ Initialize from localStorage (NO useEffect setState)
+  /**
+   * Initialize selected theme from localStorage or use provided currentTheme
+   * Uses lazy initialization to avoid unnecessary localStorage reads
+   * 
+   * @constant {ThemeType} selectedTheme
+   * @description Currently selected theme state
+   */
   const [selectedTheme, setSelectedTheme] = useState<ThemeType>(() => {
+    // Try to load saved theme from localStorage
     const savedTheme = localStorage.getItem('theme') as ThemeType;
 
+    // Validate saved theme against known valid themes
     if (savedTheme && VALID_THEMES.includes(savedTheme)) {
       return savedTheme;
     }
 
+    // Fall back to provided currentTheme or 'system' default
     return currentTheme ?? 'system';
   });
 
-  const handleThemeSelect = (theme: ThemeType) => {
+  /**
+   * Handle theme selection by user
+   * Updates local state and notifies parent component
+   * 
+   * @function handleThemeSelect
+   * @param {ThemeType} theme - Selected theme
+   */
+  const handleThemeSelect = (theme: ThemeType): void => {
     setSelectedTheme(theme);
     onThemeChange(theme);
   };
 
-  const resetToDefault = () => {
+  /**
+   * Reset theme selection to system default
+   * 
+   * @function resetToDefault
+   */
+  const resetToDefault = (): void => {
     const defaultTheme: ThemeType = 'system';
     setSelectedTheme(defaultTheme);
     onThemeChange(defaultTheme);
   };
 
-  // ✅ Apply theme whenever selectedTheme changes
+  /**
+   * Effect to apply theme whenever selectedTheme changes
+   * Ensures document reflects current theme selection
+   */
   useEffect(() => {
     applyThemeToDocument(selectedTheme);
   }, [selectedTheme]);
 
-  // ✅ Listen for system theme changes only when in system mode
+  /**
+   * Effect to listen for system theme changes when in 'system' mode
+   * Automatically updates theme when system preference changes
+   */
   useEffect(() => {
+    // Only listen for system changes when in system mode
     if (selectedTheme !== 'system') return;
 
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
 
-    const handleChange = () => {
+    /**
+     * Handler for system theme changes
+     * Re-applies system theme when preference changes
+     */
+    const handleChange = (): void => {
       applyThemeToDocument('system');
     };
 
+    // Add event listener for system theme changes
     mediaQuery.addEventListener('change', handleChange);
+    
+    // Cleanup event listener on unmount or theme change
     return () => mediaQuery.removeEventListener('change', handleChange);
   }, [selectedTheme]);
 
   return (
     <div className={`space-y-6 ${className}`}>
+      {/* Header section with title and reset button */}
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <PaletteIcon className="w-5 h-5 text-slate-600 dark:text-slate-400" />
@@ -141,11 +279,13 @@ const ThemeSelector: React.FC<ThemeSelectorProps> = ({
         <button
           onClick={resetToDefault}
           className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
+          aria-label="Reset theme to system default"
         >
           Reset to Default
         </button>
       </div>
 
+      {/* Theme selection grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {themeOptions.map((theme) => (
           <button
@@ -161,6 +301,7 @@ const ThemeSelector: React.FC<ThemeSelectorProps> = ({
           >
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-3">
+                {/* Theme icon */}
                 <div className={`p-2 rounded-lg ${theme.color} text-white`}>
                   {theme.icon}
                 </div>
@@ -169,8 +310,9 @@ const ThemeSelector: React.FC<ThemeSelectorProps> = ({
                     <span className="font-medium text-slate-800 dark:text-white">
                       {theme.name}
                     </span>
+                    {/* Checkmark for selected theme */}
                     {selectedTheme === theme.id && (
-                      <Check className="w-4 h-4 text-green-600" />
+                      <Check className="w-4 h-4 text-green-600" aria-hidden="true" />
                     )}
                   </div>
                   <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
@@ -180,10 +322,10 @@ const ThemeSelector: React.FC<ThemeSelectorProps> = ({
               </div>
             </div>
 
-            {/* Theme preview */}
+            {/* Visual theme preview */}
             <div className="mt-3 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700">
               <div className="flex h-12">
-                {/* Sidebar preview */}
+                {/* Sidebar preview area */}
                 <div
                   className={`w-1/4 ${
                     theme.id === 'light'
@@ -194,9 +336,10 @@ const ThemeSelector: React.FC<ThemeSelectorProps> = ({
                           ? 'bg-slate-900'
                           : 'bg-slate-100 dark:bg-slate-800'
                   }`}
+                  aria-hidden="true"
                 />
 
-                {/* Main content preview */}
+                {/* Main content preview area */}
                 <div
                   className={`flex-1 ${
                     theme.id === 'light'
@@ -207,8 +350,10 @@ const ThemeSelector: React.FC<ThemeSelectorProps> = ({
                           ? 'bg-black'
                           : 'bg-white dark:bg-slate-900'
                   }`}
+                  aria-hidden="true"
                 >
                   <div className="flex items-center gap-2 p-2">
+                    {/* UI element preview */}
                     <div
                       className={`w-2 h-2 rounded-full ${
                         theme.id === 'high-contrast' ? 'bg-yellow-400' : 'bg-blue-500'
@@ -231,9 +376,9 @@ const ThemeSelector: React.FC<ThemeSelectorProps> = ({
               </div>
             </div>
 
-            {/* Active indicator */}
+            {/* Active theme indicator badge */}
             {selectedTheme === theme.id && (
-              <div className="absolute -top-2 -right-2">
+              <div className="absolute -top-2 -right-2" aria-hidden="true">
                 <div className="bg-blue-500 text-white text-xs px-2 py-1 rounded-full">
                   Active
                 </div>
@@ -243,7 +388,7 @@ const ThemeSelector: React.FC<ThemeSelectorProps> = ({
         ))}
       </div>
 
-      {/* Current Theme Indicator */}
+      {/* Current theme indicator panel */}
       <div className="mt-6 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
         <div className="flex items-center justify-between">
           <div>
@@ -252,7 +397,11 @@ const ThemeSelector: React.FC<ThemeSelectorProps> = ({
               {themeOptions.find(t => t.id === selectedTheme)?.description}
             </p>
           </div>
-          <div className="flex items-center gap-2 px-3 py-1 bg-white dark:bg-slate-700 rounded-full border border-slate-200 dark:border-slate-600">
+          <div 
+            className="flex items-center gap-2 px-3 py-1 bg-white dark:bg-slate-700 rounded-full border border-slate-200 dark:border-slate-600"
+            aria-label={`Current theme: ${themeOptions.find(t => t.id === selectedTheme)?.name}`}
+          >
+            {/* Theme color dot */}
             <div
               className={`w-2 h-2 rounded-full ${
                 selectedTheme === 'light'

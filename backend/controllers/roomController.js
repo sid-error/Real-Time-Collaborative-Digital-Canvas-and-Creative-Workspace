@@ -960,6 +960,59 @@ const exportDrawing = async (req, res) => {
   }
 };
 
+/**
+ * Gets the list of participants for a specific room.
+ *
+ * @async
+ * @function getParticipants
+ * @param {import('express').Request} req - Express request object.
+ * @param {import('express').Response} res - Express response object.
+ * @returns {Promise<void>}
+ */
+const getParticipants = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Find the room first (support both ObjectId and roomCode)
+    let query = { isActive: true };
+    if (mongoose.Types.ObjectId.isValid(id)) {
+      query.$or = [{ _id: id }, { roomCode: id }];
+    } else {
+      query.roomCode = id;
+    }
+
+    const room = await Room.findOne(query);
+    if (!room) {
+      return res.status(404).json({ success: false, error: "Room not found" });
+    }
+
+    // Find all active participants for this room
+    const participants = await Participant.find({
+      room: room._id,
+      isBanned: false,
+    }).populate("user", "username email avatar");
+
+    // Map to a clean format for the frontend
+    const participantsList = participants.map((p) => ({
+      id: p._id,
+      userId: p.user._id,
+      username: p.user.username,
+      email: p.user.email,
+      avatar: p.user.avatar,
+      role: p.role,
+      joinedAt: p.joinedAt,
+      lastActive: p.lastSeen,
+    }));
+
+    res.json({
+      success: true,
+      participants: participantsList,
+    });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error.message });
+  }
+};
+
 
 module.exports = {
   createRoom,
@@ -973,4 +1026,5 @@ module.exports = {
   validateRoom,
   inviteUsers,
   exportDrawing,
+  getParticipants,
 };

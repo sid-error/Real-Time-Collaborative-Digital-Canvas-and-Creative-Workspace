@@ -2,6 +2,8 @@
  * @fileoverview Socket.io handler for real-time room collaboration, drawing, and moderation.
  */
 
+// Import mongoose for ObjectId validation
+const mongoose = require("mongoose");
 // Import the Room model to access drawing data and metadata
 const Room = require("../models/Room");
 // Import the Participant model to manage user-room membership and roles
@@ -112,10 +114,31 @@ const roomSocketHandler = (io, socket) => {
    */
   socket.on("join-room", async ({ roomId, userId }) => {
     try {
+      // Resolve the incoming roomId (could be a roomCode or MongoDB ObjectId) to the actual _id
+      let resolvedRoomId = roomId;
+      let room;
+      if (mongoose.Types.ObjectId.isValid(roomId)) {
+        // Try by _id first, fall back to roomCode
+        room = await Room.findOne({
+          $or: [{ _id: roomId }, { roomCode: roomId }],
+          isActive: true,
+        });
+      } else {
+        // Not an ObjectId, must be a roomCode
+        room = await Room.findOne({ roomCode: roomId, isActive: true });
+      }
+
+      if (!room) {
+        socket.emit("error", { message: "Room not found" });
+        return;
+      }
+      // Use the canonical MongoDB _id for all subsequent operations
+      resolvedRoomId = room._id.toString();
+
       // Retrieve the participant's permission and status record
       const participant = await Participant.findOne({
         user: userId,
-        room: roomId,
+        room: resolvedRoomId,
       }).populate("user", "username");
 
       // Security check: if the user record exists and is flagged as banned, prevent entry
@@ -126,14 +149,14 @@ const roomSocketHandler = (io, socket) => {
       }
 
       // Add the socket connection to the specified room IDs messaging channel
-      socket.join(roomId);
+      socket.join(resolvedRoomId);
       // Store session context directly on the socket object for disposal cleanup
-      socket.data = { userId, roomId };
+      socket.data = { userId, roomId: resolvedRoomId };
 
       // If a participant record was found, let others in the room know who joined
       if (participant) {
         // Broadcast 'user-joined' event to everyone in the room except the new joiner
-        socket.to(roomId).emit("user-joined", {
+        socket.to(resolvedRoomId).emit("user-joined", {
           user: participant.user.username,
           userId: userId,
           role: participant.role,
@@ -141,31 +164,25 @@ const roomSocketHandler = (io, socket) => {
       }
 
       // Immediately fetch and broadcast the refreshed participant roster for this room
-      const participantsList = await getParticipantsList(roomId);
-      io.to(roomId).emit("participants-updated", {
+      const participantsList = await getParticipantsList(resolvedRoomId);
+      io.to(resolvedRoomId).emit("participants-updated", {
         participants: participantsList,
       });
 
-      // Retrieve the current persistent state of the room from the database
-      const room = await Room.findById(roomId);
-      if (!room) {
-        // Handle edge case where room data is missing
-        socket.emit("error", { message: "Room not found" });
-        return;
-      }
-
       // Merge elements from the DB with any "volatile" data still in the flush buffer
-      const bufferedData = drawingBuffer.get(roomId) || [];
+      const bufferedData = drawingBuffer.get(resolvedRoomId) || [];
       const currentDrawingData = [...(room.drawingData || []), ...bufferedData];
 
       // Retrieve any active object locks currently held for this room in memory
-      const currentLocks = roomLocks.get(roomId) || {};
+      const currentLocks = roomLocks.get(resolvedRoomId) || {};
 
       // Send the complete room state to the newly joined client for initial synchronization
+      // Include the resolvedRoomId so the frontend uses the canonical _id for all socket events
       socket.emit("room-state", {
         room,
         drawingData: currentDrawingData,
         activeLocks: currentLocks,
+        resolvedRoomId: resolvedRoomId,
       });
     } catch (error) {
       // Handle server/connection errors during initialization

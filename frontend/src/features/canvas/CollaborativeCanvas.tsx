@@ -188,9 +188,11 @@ class BrushEngine {
  * 
  * @interface CollaborativeCanvasProps
  * @property {string} [roomId] - Optional room identifier for collaboration
+ * @property {(socket: Socket) => void} [onSocketReady] - Callback when socket is connected
  */
 interface CollaborativeCanvasProps {
   roomId?: string;
+  onSocketReady?: (socket: Socket) => void;
 }
 
 /**
@@ -225,15 +227,16 @@ interface CollaborativeCanvasProps {
  * <CollaborativeCanvas />
  * 
  * // Collaborative room usage
- * <CollaborativeCanvas roomId="room-123" />
+ * <CollaborativeCanvas roomId="room-123" onSocketReady={(s) => setSocket(s)} />
  * ```
  * 
  * @param {CollaborativeCanvasProps} props - Component properties
  * @param {string} [props.roomId] - Room ID for collaborative session
+ * @param {(socket: Socket) => void} [props.onSocketReady] - Socket ready callback
  * 
  * @returns {JSX.Element} Interactive collaborative canvas
  */
-export const CollaborativeCanvas = ({ roomId }: CollaborativeCanvasProps) => {
+export const CollaborativeCanvas = ({ roomId, onSocketReady }: CollaborativeCanvasProps) => {
   const { user } = useAuth();
   
   // Canvas references
@@ -288,6 +291,9 @@ export const CollaborativeCanvas = ({ roomId }: CollaborativeCanvasProps) => {
     lineJoin: "round",
   });
 
+  // Resolved room ID (canonical MongoDB _id returned by the backend socket)
+  const resolvedRoomIdRef = useRef<string | undefined>(roomId);
+
   /**
    * Initialize WebSocket connection for real-time collaboration
    * 
@@ -308,9 +314,13 @@ export const CollaborativeCanvas = ({ roomId }: CollaborativeCanvasProps) => {
     socket.emit('join-room', { roomId, userId: user.id || user._id });
 
     // Load existing room state
-    socket.on('room-state', ({ drawingData }) => {
+    socket.on('room-state', ({ drawingData, resolvedRoomId }) => {
       if (drawingData) {
         setElements(drawingData);
+      }
+      // Use the canonical MongoDB _id for all subsequent socket events
+      if (resolvedRoomId) {
+        resolvedRoomIdRef.current = resolvedRoomId;
       }
     });
 
@@ -350,6 +360,11 @@ export const CollaborativeCanvas = ({ roomId }: CollaborativeCanvasProps) => {
         return next;
       });
     });
+
+    // Expose the socket to the parent component
+    if (onSocketReady) {
+      onSocketReady(socket);
+    }
 
     // Cleanup on unmount
     return () => {
@@ -777,9 +792,9 @@ export const CollaborativeCanvas = ({ roomId }: CollaborativeCanvasProps) => {
     const point = getCanvasCoordinates(clientX, clientY);
 
     // Emit cursor movement to other users
-    if (socketRef.current && roomId && user) {
+    if (socketRef.current && resolvedRoomIdRef.current && user) {
       socketRef.current.emit("cursor-move", {
-        roomId,
+        roomId: resolvedRoomIdRef.current,
         x: point.x,
         y: point.y,
         userId: user.id || user._id,
@@ -815,9 +830,9 @@ export const CollaborativeCanvas = ({ roomId }: CollaborativeCanvasProps) => {
       redrawCurrentStroke(updatedElement);
 
       // Emit real-time update to other users (throttled to 50ms)
-      if (socketRef.current && roomId && currentTime - lastEmitTimeRef.current > 50) {
+      if (socketRef.current && resolvedRoomIdRef.current && currentTime - lastEmitTimeRef.current > 50) {
         socketRef.current.emit('drawing-update', {
-          roomId,
+          roomId: resolvedRoomIdRef.current,
           element: updatedElement,
           saveToDb: false,
         });
@@ -852,9 +867,9 @@ export const CollaborativeCanvas = ({ roomId }: CollaborativeCanvasProps) => {
     if (tool === "pencil" || tool === "eraser") {
       if (brushEngineRef.current?.hasPoints()) {
         setElements((prev) => [...prev, currentElement]);
-        if (socketRef.current && roomId) {
+        if (socketRef.current && resolvedRoomIdRef.current) {
           socketRef.current.emit("drawing-update", {
-            roomId,
+            roomId: resolvedRoomIdRef.current,
             element: currentElement,
             saveToDb: true,
           });
@@ -867,9 +882,9 @@ export const CollaborativeCanvas = ({ roomId }: CollaborativeCanvasProps) => {
         Math.abs(currentElement.height || 0) > 1
       ) {
         setElements((prev) => [...prev, currentElement]);
-        if (socketRef.current && roomId) {
+        if (socketRef.current && resolvedRoomIdRef.current) {
           socketRef.current.emit("drawing-update", {
-            roomId,
+            roomId: resolvedRoomIdRef.current,
             element: currentElement,
             saveToDb: true,
           });
@@ -878,9 +893,9 @@ export const CollaborativeCanvas = ({ roomId }: CollaborativeCanvasProps) => {
     }
 
     // Emit object unlock event
-    if (socketRef.current && roomId && currentElement) {
+    if (socketRef.current && resolvedRoomIdRef.current && currentElement) {
       socketRef.current.emit("unlock-object", {
-        roomId,
+        roomId: resolvedRoomIdRef.current,
         elementId: currentElement.id,
       });
     }

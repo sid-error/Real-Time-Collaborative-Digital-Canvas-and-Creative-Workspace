@@ -1,5 +1,7 @@
 // src/services/roomService.ts
 import api from '../api/axios';
+import { AxiosError } from 'axios';
+
 
 /**
  * Interface representing a room object
@@ -63,6 +65,30 @@ export interface JoinRoomData {
 }
 
 /**
+ * Interface representing a raw room object from the backend
+ */
+interface BackendRoom {
+  _id?: string;
+  id?: string;
+  name?: string;
+  description?: string;
+  owner?: string | { _id?: string; id?: string; username?: string; fullName?: string };
+  ownerName?: string;
+  isPublic?: boolean;
+  visibility?: 'public' | 'private';
+  participantCount?: number;
+  participants?: unknown[];
+  password?: string;
+  hasPassword?: boolean;
+  requiresPassword?: boolean;
+  maxParticipants?: number;
+  createdAt?: string;
+  updatedAt?: string;
+  thumbnail?: string;
+  roomCode?: string;
+}
+
+/**
  * Maps a raw backend room document to the frontend Room interface.
  * Backend returns different field names/types than what the UI expects:
  *   - `_id` instead of `id`
@@ -71,7 +97,8 @@ export interface JoinRoomData {
  *   - `participants: ObjectId[]` instead of `participantCount`
  *   - `password` (hashed string) instead of `hasPassword`
  */
-function mapBackendRoom(raw: any): Room {
+function mapBackendRoom(raw: BackendRoom): Room {
+
   // Handle owner — can be a populated object or a plain ObjectId string
   let ownerId = '';
   let ownerName = 'Unknown';
@@ -146,12 +173,13 @@ class RoomService {
    */
   async createRoom(roomData: CreateRoomData): Promise<{ success: boolean; room?: Room; message?: string }> {
     try {
-      const response = await api.post('/rooms/create', {
+      const response = await api.post<{ success?: boolean; room?: BackendRoom; message?: string }>('/rooms/create', {
         name: roomData.name,
         description: roomData.description,
         visibility: roomData.isPublic ? 'public' : 'private',
         password: roomData.password,
       });
+
 
       const data = response.data;
       return {
@@ -159,12 +187,14 @@ class RoomService {
         room: data.room ? mapBackendRoom(data.room) : undefined,
         message: data.message,
       };
-    } catch (error: any) {
+    } catch (error) {
+      const err = error as AxiosError<{ error?: string; message?: string }>;
       return {
         success: false,
-        message: error.response?.data?.error || error.response?.data?.message || 'Failed to create room',
+        message: err.response?.data?.error || err.response?.data?.message || 'Failed to create room',
       };
     }
+
   }
 
   /**
@@ -185,10 +215,11 @@ class RoomService {
    */
   async joinRoom(joinData: JoinRoomData): Promise<{ success: boolean; room?: Room; message?: string }> {
     try {
-      const response = await api.post('/rooms/join', {
+      const response = await api.post<{ success?: boolean; room?: BackendRoom; message?: string }>('/rooms/join', {
         roomCode: joinData.roomId,
         password: joinData.password,
       });
+
 
       const data = response.data;
       return {
@@ -196,12 +227,14 @@ class RoomService {
         room: data.room ? mapBackendRoom(data.room) : undefined,
         message: data.message,
       };
-    } catch (error: any) {
+    } catch (error) {
+      const err = error as AxiosError<{ error?: string; message?: string }>;
       return {
         success: false,
-        message: error.response?.data?.error || error.response?.data?.message || 'Failed to join room',
+        message: err.response?.data?.error || err.response?.data?.message || 'Failed to join room',
       };
     }
+
   }
 
   /**
@@ -239,7 +272,8 @@ class RoomService {
       if (options?.limit) params.append('limit', options.limit.toString());
       if (options?.page) params.append('page', options.page.toString());
 
-      const response = await api.get(`/rooms/public?${params.toString()}`);
+      const response = await api.get<{ rooms?: BackendRoom[]; pagination?: { total: number }; message?: string }>(`/rooms/public?${params.toString()}`);
+
       const data = response.data;
 
       // Backend returns { rooms, pagination } without `success`
@@ -249,12 +283,14 @@ class RoomService {
         rooms: rawRooms.map(mapBackendRoom),
         total: data.pagination?.total ?? rawRooms.length,
       };
-    } catch (error: any) {
+    } catch (error) {
+      const err = error as AxiosError<{ error?: string; message?: string }>;
       return {
         success: false,
-        message: error.response?.data?.error || error.response?.data?.message || 'Failed to fetch rooms',
+        message: err.response?.data?.error || err.response?.data?.message || 'Failed to fetch rooms',
       };
     }
+
   }
 
   /**
@@ -274,7 +310,8 @@ class RoomService {
    */
   async getMyRooms(): Promise<{ success: boolean; rooms?: Room[]; message?: string }> {
     try {
-      const response = await api.get('/rooms/my-rooms');
+      const response = await api.get<{ rooms?: BackendRoom[]; message?: string }>('/rooms/my-rooms');
+
       const data = response.data;
 
       const rawRooms = data.rooms || [];
@@ -282,12 +319,14 @@ class RoomService {
         success: true,
         rooms: rawRooms.map(mapBackendRoom),
       };
-    } catch (error: any) {
+    } catch (error) {
+      const err = error as AxiosError<{ error?: string; message?: string }>;
       return {
         success: false,
-        message: error.response?.data?.error || error.response?.data?.message || 'Failed to fetch your rooms',
+        message: err.response?.data?.error || err.response?.data?.message || 'Failed to fetch your rooms',
       };
     }
+
   }
 
   /**
@@ -305,7 +344,8 @@ class RoomService {
    */
   async getRoom(roomId: string): Promise<{ success: boolean; room?: Room; message?: string }> {
     try {
-      const response = await api.get(`/rooms/${roomId}/validate`);
+      const response = await api.get<{ success?: boolean; room?: BackendRoom; message?: string }>(`/rooms/${roomId}/validate`);
+
       const data = response.data;
 
       return {
@@ -313,12 +353,14 @@ class RoomService {
         room: data.room ? mapBackendRoom(data.room) : undefined,
         message: data.message,
       };
-    } catch (error: any) {
+    } catch (error) {
+      const err = error as AxiosError<{ error?: string; message?: string }>;
       return {
         success: false,
-        message: error.response?.data?.error || error.response?.data?.message || 'Failed to fetch room details',
+        message: err.response?.data?.error || err.response?.data?.message || 'Failed to fetch room details',
       };
     }
+
   }
 
   /**
@@ -340,23 +382,26 @@ class RoomService {
    */
   async updateRoom(roomId: string, updates: Partial<CreateRoomData>): Promise<{ success: boolean; message?: string }> {
     try {
-      const backendUpdates: any = { ...updates };
+      const backendUpdates: Record<string, unknown> = { ...updates };
       if (updates.isPublic !== undefined) {
         backendUpdates.visibility = updates.isPublic ? 'public' : 'private';
         delete backendUpdates.isPublic;
       }
 
-      const response = await api.put(`/rooms/${roomId}`, backendUpdates);
+      const response = await api.put<{ success?: boolean; message?: string }>(`/rooms/${roomId}`, backendUpdates);
+
       return {
         success: response.data.success ?? true,
         message: response.data.message,
       };
-    } catch (error: any) {
+    } catch (error) {
+      const err = error as AxiosError<{ error?: string; message?: string }>;
       return {
         success: false,
-        message: error.response?.data?.error || error.response?.data?.message || 'Failed to update room',
+        message: err.response?.data?.error || err.response?.data?.message || 'Failed to update room',
       };
     }
+
   }
 
   /**
@@ -374,17 +419,20 @@ class RoomService {
    */
   async deleteRoom(roomId: string): Promise<{ success: boolean; message?: string }> {
     try {
-      const response = await api.delete(`/rooms/${roomId}`);
+      const response = await api.delete<{ success?: boolean; message?: string }>(`/rooms/${roomId}`);
+
       return {
         success: response.data.success ?? true,
         message: response.data.message,
       };
-    } catch (error: any) {
+    } catch (error) {
+      const err = error as AxiosError<{ error?: string; message?: string }>;
       return {
         success: false,
-        message: error.response?.data?.error || error.response?.data?.message || 'Failed to delete room',
+        message: err.response?.data?.error || err.response?.data?.message || 'Failed to delete room',
       };
     }
+
   }
 
   /**
@@ -402,17 +450,20 @@ class RoomService {
    */
   async leaveRoom(roomId: string): Promise<{ success: boolean; message?: string }> {
     try {
-      const response = await api.post(`/rooms/${roomId}/leave`);
+      const response = await api.post<{ success?: boolean; message?: string }>(`/rooms/${roomId}/leave`);
+
       return {
         success: response.data.success ?? true,
         message: response.data.message,
       };
-    } catch (error: any) {
+    } catch (error) {
+      const err = error as AxiosError<{ error?: string; message?: string }>;
       return {
         success: false,
-        message: error.response?.data?.error || error.response?.data?.message || 'Failed to leave room',
+        message: err.response?.data?.error || err.response?.data?.message || 'Failed to leave room',
       };
     }
+
   }
 
   /**
@@ -431,20 +482,23 @@ class RoomService {
    * }
    * ```
    */
-  async getParticipants(roomId: string): Promise<{ success: boolean; participants?: any[]; message?: string }> {
+  async getParticipants(roomId: string): Promise<{ success: boolean; participants?: unknown[]; message?: string }> {
     try {
-      const response = await api.get(`/rooms/${roomId}/participants`);
+      const response = await api.get<{ success?: boolean; participants?: unknown[]; message?: string }>(`/rooms/${roomId}/participants`);
+
       return {
         success: response.data.success ?? true,
         participants: response.data.participants,
         message: response.data.message,
       };
-    } catch (error: any) {
+    } catch (error) {
+      const err = error as AxiosError<{ error?: string; message?: string }>;
       return {
         success: false,
-        message: error.response?.data?.error || error.response?.data?.message || 'Failed to fetch participants',
+        message: err.response?.data?.error || err.response?.data?.message || 'Failed to fetch participants',
       };
     }
+
   }
 
   /**
@@ -472,17 +526,20 @@ class RoomService {
     action: 'kick' | 'ban' | 'promote' | 'demote'
   ): Promise<{ success: boolean; message?: string }> {
     try {
-      const response = await api.post(`/rooms/${roomId}/participants/${userId}`, { action });
+      const response = await api.post<{ success?: boolean; message?: string }>(`/rooms/${roomId}/participants/${userId}`, { action });
+
       return {
         success: response.data.success ?? true,
         message: response.data.message,
       };
-    } catch (error: any) {
+    } catch (error) {
+      const err = error as AxiosError<{ error?: string; message?: string }>;
       return {
         success: false,
-        message: error.response?.data?.error || error.response?.data?.message || `Failed to ${action} participant`,
+        message: err.response?.data?.error || err.response?.data?.message || `Failed to ${action} participant`,
       };
     }
+
   }
 
   /**
@@ -508,7 +565,8 @@ class RoomService {
     message?: string;
   }> {
     try {
-      const response = await api.get(`/rooms/${roomId}/validate`);
+      const response = await api.get<{ success?: boolean; room?: BackendRoom; message?: string }>(`/rooms/${roomId}/validate`);
+
       const data = response.data;
       return {
         success: data.success ?? true,
@@ -520,12 +578,14 @@ class RoomService {
         room: data.room ? mapBackendRoom(data.room) : undefined,
         message: data.message,
       };
-    } catch (error: any) {
-    return {
+    } catch (error) {
+      const err = error as AxiosError<{ error?: string; message?: string }>;
+      return {
         success: false,
-        message: error.response?.data?.error || error.response?.data?.message || 'Room not found',
+        message: err.response?.data?.error || err.response?.data?.message || 'Room not found',
       };
     }
+
   }
 
   /**
@@ -533,17 +593,20 @@ class RoomService {
    */
   async inviteUsers(roomId: string, userIds: string[]): Promise<{ success: boolean; message?: string }> {
     try {
-      const response = await api.post(`/rooms/${roomId}/invite`, { userIds });
+      const response = await api.post<{ success?: boolean; message?: string }>(`/rooms/${roomId}/invite`, { userIds });
+
       return {
         success: response.data.success ?? true,
         message: response.data.message,
       };
-    } catch (error: any) {
+    } catch (error) {
+      const err = error as AxiosError<{ error?: string; message?: string }>;
       return {
         success: false,
-        message: error.response?.data?.error || error.response?.data?.message || 'Failed to invite users',
+        message: err.response?.data?.error || err.response?.data?.message || 'Failed to invite users',
       };
     }
+
   }
 }
 

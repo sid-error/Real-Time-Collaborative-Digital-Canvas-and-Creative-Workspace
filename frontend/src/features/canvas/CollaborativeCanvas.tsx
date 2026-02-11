@@ -429,13 +429,12 @@ export const CollaborativeCanvas = ({ roomId, onSocketReady }: CollaborativeCanv
    * @function redrawCanvasForExport
    * @param {CanvasRenderingContext2D} ctx - Canvas context
    * @param {DrawingElement[]} elementsToDraw - Elements to draw
-   * @param {number} dpr - Device pixel ratio
    */
   const redrawCanvasForExport = useCallback((
     ctx: CanvasRenderingContext2D, 
-    elementsToDraw: DrawingElement[], 
-    dpr: number
+    elementsToDraw: DrawingElement[]
   ): void => {
+
     elementsToDraw.forEach((el) => {
       ctx.beginPath();
       ctx.strokeStyle = el.color;
@@ -459,9 +458,9 @@ export const CollaborativeCanvas = ({ roomId, onSocketReady }: CollaborativeCanv
         case "pencil":
         case "eraser":
           if (el.points && el.points.length > 1) {
-            ctx.moveTo(el.points[0].x / dpr, el.points[0].y / dpr);
+            ctx.moveTo(el.points[0].x, el.points[0].y);
             for (let i = 1; i < el.points.length; i++) {
-              ctx.lineTo(el.points[i].x / dpr, el.points[i].y / dpr);
+              ctx.lineTo(el.points[i].x, el.points[i].y);
             }
           }
           break;
@@ -474,10 +473,10 @@ export const CollaborativeCanvas = ({ roomId, onSocketReady }: CollaborativeCanv
             el.height !== undefined
           ) {
             ctx.strokeRect(
-              el.x / dpr,
-              el.y / dpr,
-              el.width / dpr,
-              el.height / dpr,
+              el.x,
+              el.y,
+              el.width,
+              el.height,
             );
           }
           break;
@@ -490,8 +489,8 @@ export const CollaborativeCanvas = ({ roomId, onSocketReady }: CollaborativeCanv
             el.height !== undefined
           ) {
             const radius =
-              Math.sqrt(Math.pow(el.width, 2) + Math.pow(el.height, 2)) / dpr;
-            ctx.arc(el.x / dpr, el.y / dpr, Math.abs(radius), 0, 2 * Math.PI);
+              Math.sqrt(Math.pow(el.width, 2) + Math.pow(el.height, 2));
+            ctx.arc(el.x, el.y, Math.abs(radius), 0, 2 * Math.PI);
           }
           break;
       }
@@ -499,6 +498,7 @@ export const CollaborativeCanvas = ({ roomId, onSocketReady }: CollaborativeCanv
       ctx.stroke();
     });
   }, []);
+
 
   /**
    * Redraw all elements on canvas including grid and saved drawings
@@ -522,8 +522,8 @@ export const CollaborativeCanvas = ({ roomId, onSocketReady }: CollaborativeCanv
     // Apply transformations for elements
     ctx.save();
     const dpr = window.devicePixelRatio || 1;
-    ctx.scale(1 / dpr, 1 / dpr);
-    ctx.translate(panOffset.x * zoomLevel * dpr, panOffset.y * zoomLevel * dpr);
+    ctx.scale(dpr, dpr);
+    ctx.translate(panOffset.x * zoomLevel, panOffset.y * zoomLevel);
     ctx.scale(zoomLevel, zoomLevel);
     
     // Enable anti-aliasing for smoother edges
@@ -556,9 +556,9 @@ export const CollaborativeCanvas = ({ roomId, onSocketReady }: CollaborativeCanv
       switch (el.type) {
         case "pencil":
           if (el.points && el.points.length > 1) {
-            ctx.moveTo(el.points[0].x / dpr, el.points[0].y / dpr);
+            ctx.moveTo(el.points[0].x, el.points[0].y);
             for (let i = 1; i < el.points.length; i++) {
-              ctx.lineTo(el.points[i].x / dpr, el.points[i].y / dpr);
+              ctx.lineTo(el.points[i].x, el.points[i].y);
             }
           }
           break;
@@ -571,10 +571,10 @@ export const CollaborativeCanvas = ({ roomId, onSocketReady }: CollaborativeCanv
             el.height !== undefined
           ) {
             ctx.strokeRect(
-              el.x / dpr,
-              el.y / dpr,
-              el.width / dpr,
-              el.height / dpr,
+              el.x,
+              el.y,
+              el.width,
+              el.height,
             );
           }
           break;
@@ -587,8 +587,8 @@ export const CollaborativeCanvas = ({ roomId, onSocketReady }: CollaborativeCanv
             el.height !== undefined
           ) {
             const radius =
-              Math.sqrt(Math.pow(el.width, 2) + Math.pow(el.height, 2)) / dpr;
-            ctx.arc(el.x / dpr, el.y / dpr, Math.abs(radius), 0, 2 * Math.PI);
+              Math.sqrt(Math.pow(el.width, 2) + Math.pow(el.height, 2));
+            ctx.arc(el.x, el.y, Math.abs(radius), 0, 2 * Math.PI);
           }
           break;
           
@@ -596,9 +596,9 @@ export const CollaborativeCanvas = ({ roomId, onSocketReady }: CollaborativeCanv
           // Eraser is implemented as a white pencil stroke
           ctx.strokeStyle = '#ffffff';
           if (el.points && el.points.length > 1) {
-            ctx.moveTo(el.points[0].x / dpr, el.points[0].y / dpr);
+            ctx.moveTo(el.points[0].x, el.points[0].y);
             for (let i = 1; i < el.points.length; i++) {
-              ctx.lineTo(el.points[i].x / dpr, el.points[i].y / dpr);
+              ctx.lineTo(el.points[i].x, el.points[i].y);
             }
           }
           break;
@@ -619,12 +619,12 @@ export const CollaborativeCanvas = ({ roomId, onSocketReady }: CollaborativeCanv
           bh = 20;
         if (el.type === "pencil" || el.type === "eraser") {
           if (el.points && el.points.length > 0) {
-            bx = el.points[0].x / dpr - 15;
-            by = el.points[0].y / dpr - 15;
+            bx = el.points[0].x - 15;
+            by = el.points[0].y - 15;
           }
         } else {
-          bx = (el.x || 0) / dpr - 15;
-          by = (el.y || 0) / dpr - 15;
+          bx = (el.x || 0) - 15;
+          by = (el.y || 0) - 15;
         }
 
         // Draw lock badge background with user color
@@ -648,6 +648,7 @@ export const CollaborativeCanvas = ({ roomId, onSocketReady }: CollaborativeCanv
     });
 
     ctx.restore();
+
   }, [
     elements,
     canvasSize,
@@ -710,11 +711,11 @@ export const CollaborativeCanvas = ({ roomId, onSocketReady }: CollaborativeCanv
     if (!canvas) return { x: 0, y: 0 };
 
     const rect = canvas.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
-    const x = ((clientX - rect.left) / zoomLevel - panOffset.x) * dpr;
-    const y = ((clientY - rect.top) / zoomLevel - panOffset.y) * dpr;
+    const x = (clientX - rect.left) / zoomLevel - panOffset.x;
+    const y = (clientY - rect.top) / zoomLevel - panOffset.y;
 
     return { x, y };
+
   }, [zoomLevel, panOffset]);
 
   /**
@@ -934,11 +935,12 @@ export const CollaborativeCanvas = ({ roomId, onSocketReady }: CollaborativeCanv
       ctx.save();
 
       // Apply transformations
+      // Apply transformations
       const dpr = window.devicePixelRatio || 1;
-      ctx.scale(1 / dpr, 1 / dpr);
+      ctx.scale(dpr, dpr);
       ctx.translate(
-        panOffset.x * zoomLevel * dpr,
-        panOffset.y * zoomLevel * dpr,
+        panOffset.x * zoomLevel,
+        panOffset.y * zoomLevel,
       );
       ctx.scale(zoomLevel, zoomLevel);
 
@@ -957,14 +959,15 @@ export const CollaborativeCanvas = ({ roomId, onSocketReady }: CollaborativeCanv
 
       // Draw the stroke
       ctx.beginPath();
-      ctx.moveTo(element.points[0].x / dpr, element.points[0].y / dpr);
+      ctx.moveTo(element.points[0].x, element.points[0].y);
 
       for (let i = 1; i < element.points.length; i++) {
-        ctx.lineTo(element.points[i].x / dpr, element.points[i].y / dpr);
+        ctx.lineTo(element.points[i].x, element.points[i].y);
       }
 
       ctx.stroke();
       ctx.restore();
+
     }
   };
 
@@ -998,12 +1001,13 @@ export const CollaborativeCanvas = ({ roomId, onSocketReady }: CollaborativeCanv
       // Apply the same transformations and draw all elements
       ctx.save();
       const dpr = window.devicePixelRatio || 1;
-      ctx.scale(1 / dpr, 1 / dpr);
-      ctx.translate(panOffset.x * zoomLevel * dpr, panOffset.y * zoomLevel * dpr);
+      ctx.scale(dpr, dpr);
+      ctx.translate(panOffset.x * zoomLevel, panOffset.y * zoomLevel);
       ctx.scale(zoomLevel, zoomLevel);
       
       // Redraw all elements
-      redrawCanvasForExport(ctx, elements, dpr);
+      redrawCanvasForExport(ctx, elements);
+
       
       ctx.restore();
       
@@ -1306,9 +1310,10 @@ export const CollaborativeCanvas = ({ roomId, onSocketReady }: CollaborativeCanv
             key={id}
             className="absolute pointer-events-none z-50 transition-all duration-75 ease-linear"
             style={{
-              left: `${(pos.x / (window.devicePixelRatio || 1)) * zoomLevel + panOffset.x * zoomLevel}px`,
-              top: `${(pos.y / (window.devicePixelRatio || 1)) * zoomLevel + panOffset.y * zoomLevel}px`,
+              left: `${pos.x * zoomLevel + panOffset.x * zoomLevel}px`,
+              top: `${pos.y * zoomLevel + panOffset.y * zoomLevel}px`,
             }}
+
             aria-label={`${pos.username}'s cursor`}
           >
             {/* Custom cursor SVG */}

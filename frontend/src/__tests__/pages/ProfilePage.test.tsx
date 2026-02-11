@@ -257,7 +257,7 @@ describe('ProfilePage', () => {
     fireEvent.click(screen.getByRole('button', { name: /Dark/i }));
 
     expect(mockUpdateUser).toHaveBeenCalledWith({ theme: 'dark' });
-    expect(localStorage.getItem('userTheme')).toBe('dark');
+    expect(localStorage.getItem('user-theme')).toBe('dark');
     expect(document.documentElement.classList.contains('dark')).toBe(true);
   });
 
@@ -281,7 +281,7 @@ describe('ProfilePage', () => {
     fireEvent.click(screen.getByRole('button', { name: /System/i }));
 
     expect(mockUpdateUser).toHaveBeenCalledWith({ theme: 'system' });
-    expect(localStorage.getItem('userTheme')).toBe('system');
+    expect(localStorage.getItem('user-theme')).toBe('system');
     expect(document.documentElement.classList.contains('dark')).toBe(true);
   });
 
@@ -294,7 +294,7 @@ describe('ProfilePage', () => {
     fireEvent.click(screen.getByRole('button', { name: /Set High Contrast/i }));
 
     expect(mockUpdateUser).toHaveBeenCalledWith({ theme: 'high-contrast' });
-    expect(localStorage.getItem('userTheme')).toBe('high-contrast');
+    expect(localStorage.getItem('user-theme')).toBe('high-contrast');
 
     expect(document.documentElement.classList.contains('high-contrast')).toBe(true);
     expect(document.documentElement.classList.contains('dark')).toBe(true);

@@ -104,9 +104,9 @@ export const checkUsernameAvailability = async (username: string): Promise<unkno
  * }) as any;
  * ```
  */
-export const updateProfile = async (profileData: { 
-  displayName?: string; 
-  bio?: string; 
+export const updateProfile = async (profileData: {
+  displayName?: string;
+  bio?: string;
   avatar?: string | null;
 }): Promise<unknown> => {
   try {
@@ -114,9 +114,9 @@ export const updateProfile = async (profileData: {
     return response.data;
   } catch (error: unknown) {
     const err = error as { response?: { data?: { message?: string } } };
-    return { 
-      success: false, 
-      message: err.response?.data?.message || "Update failed" 
+    return {
+      success: false,
+      message: err.response?.data?.message || "Update failed"
     };
   }
 };
@@ -338,35 +338,35 @@ export const exportDrawing = async (roomId: string, format: 'png' | 'jpeg' = 'pn
  */
 export const clearAuthTokens = (): void => {
   // Preserve theme preference
-  const theme = localStorage.getItem('user-theme');
-  
+  const theme = localStorage.getItem('theme');
+
   // Clear authentication data
   localStorage.removeItem('auth_token');
   localStorage.removeItem('user');
   localStorage.removeItem('login_activities');
   localStorage.removeItem('remembered_email');
-  
+
   // Clear session storage completely
   sessionStorage.clear();
-  
+
   // Restore theme preference if it existed
   if (theme) {
-    localStorage.setItem('user-theme', theme);
+    localStorage.setItem('theme', theme);
   }
-  
+
   console.log('Auth tokens cleared successfully');
 };
 
 /**
  * Google OAuth integration placeholder
- * 
+ *
  * @todo Implement Google OAuth authentication flow
  * This would typically redirect to Google's OAuth endpoint and
  * handle the callback with an authorization code.
- * 
+ *
  * @function loginWithGoogle
  * @returns {Promise<void>}
- * 
+ *
  * @example
  * ```typescript
  * // Planned implementation
@@ -374,13 +374,13 @@ export const clearAuthTokens = (): void => {
  *   const clientId = process.env.GOOGLE_CLIENT_ID;
  *   const redirectUri = `${window.location.origin}/auth/google/callback`;
  *   const scope = 'email profile';
- *   
+ *
  *   const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
  *     `client_id=${clientId}&` +
  *     `redirect_uri=${encodeURIComponent(redirectUri)}&` +
  *     `response_type=code&` +
  *     `scope=${encodeURIComponent(scope)}`;
- *   
+ *
  *   window.location.href = authUrl;
  * };
  * ```

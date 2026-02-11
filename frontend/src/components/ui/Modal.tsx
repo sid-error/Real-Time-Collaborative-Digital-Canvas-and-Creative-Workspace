@@ -108,7 +108,7 @@ export const Modal = ({ isOpen, onClose, title, children }: ModalProps) => {
   };
 
   return (
-    <div 
+    <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
       onClick={handleOverlayClick}
       onKeyDown={handleKeyDown}
@@ -118,30 +118,30 @@ export const Modal = ({ isOpen, onClose, title, children }: ModalProps) => {
       tabIndex={-1} // Make overlay focusable for keyboard navigation
     >
       {/* Modal container with animations */}
-      <div 
-        className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200"
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in duration-200"
         role="document"
       >
         {/* Modal header with title and close button */}
-        <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-800">
+        <div className="flex items-center justify-between p-6 border-b border-slate-100">
           {/* Modal title - used for aria-labelledby */}
-          <h3 
-            id="modal-title" 
-            className="text-xl font-bold text-slate-900 dark:text-white"
+          <h3
+            id="modal-title"
+            className="text-xl font-bold text-slate-900"
           >
             {title}
           </h3>
           {/* Close button with keyboard focus */}
-          <button 
+          <button
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="text-slate-400 hover:text-slate-600 transition-colors p-1 rounded-full hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
             aria-label="Close modal"
             autoFocus // Auto-focus close button for keyboard users
           >
             <X size={24} aria-hidden="true" />
           </button>
         </div>
-        
+
         {/* Modal content area - scrollable if content exceeds height */}
         <div className="p-6 max-h-[60vh] overflow-y-auto">
           {children}

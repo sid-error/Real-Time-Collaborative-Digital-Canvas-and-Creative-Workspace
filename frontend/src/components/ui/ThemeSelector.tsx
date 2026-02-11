@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Sun, Moon, Monitor, Contrast, Check, Palette as PaletteIcon } from 'lucide-react';
+import { getStoredTheme, setStoredTheme, applyTheme } from '../../utils/theme';
 
 /**
  * Supported theme types for the application
@@ -48,7 +49,7 @@ interface ThemeSelectorProps {
  * 
  * @constant {ThemeType[]} VALID_THEMES
  */
-const VALID_THEMES: ThemeType[] = ['light', 'dark', 'system', 'high-contrast'];
+
 
 /**
  * ThemeSelector Component
@@ -144,80 +145,27 @@ const ThemeSelector: React.FC<ThemeSelectorProps> = ({
     }
   ];
 
-  /**
-   * Applies the specified theme to the document root element
-   * Updates CSS classes and persists to localStorage
-   * 
-   * @function applyThemeToDocument
-   * @param {ThemeType} theme - Theme to apply
-   * 
-   * @remarks
-   * This function directly manipulates the document.documentElement classList
-   * to apply the theme-specific CSS classes that should be defined in your
-   * global CSS/Tailwind configuration.
-   */
-  const applyThemeToDocument = (theme: ThemeType): void => {
-    const html = document.documentElement;
-
-    // Remove all theme classes to ensure clean state
-    html.classList.remove('light', 'dark', 'high-contrast');
-
-    // Apply appropriate classes based on theme selection
-    switch (theme) {
-      case 'light':
-        html.classList.add('light');
-        break;
-
-      case 'dark':
-        html.classList.add('dark');
-        break;
-
-      case 'high-contrast':
-        html.classList.add('high-contrast');
-        html.classList.add('dark'); // High contrast usually based on dark theme
-        break;
-
-      case 'system':
-      default:
-        // Use system preference
-        if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-          html.classList.add('dark');
-        } else {
-          html.classList.add('light');
-        }
-        break;
-    }
-
-    // Persist theme choice to localStorage for future sessions
-    localStorage.setItem('theme', theme);
-  };
-
-  /**
-   * Initialize selected theme from localStorage or use provided currentTheme
-   * Uses lazy initialization to avoid unnecessary localStorage reads
-   * 
-   * @constant {ThemeType} selectedTheme
-   * @description Currently selected theme state
-   */
   const [selectedTheme, setSelectedTheme] = useState<ThemeType>(() => {
-    // Try to load saved theme from localStorage
-    const savedTheme = localStorage.getItem('theme') as ThemeType;
-
-    // Validate saved theme against known valid themes
-    if (savedTheme && VALID_THEMES.includes(savedTheme)) {
-      return savedTheme;
-    }
-
-    // Fall back to provided currentTheme or 'system' default
-    return currentTheme ?? 'system';
+    // Rely on currentTheme prop or fallback to what's in storage/default
+    return currentTheme || (getStoredTheme() as ThemeType) || 'system';
   });
+
+  // Sync state with props
+  useEffect(() => {
+    if (currentTheme) {
+      setSelectedTheme(currentTheme);
+    }
+  }, [currentTheme]);
+
+  // Apply theme when selection changes
+  useEffect(() => {
+    applyTheme(selectedTheme);
+    setStoredTheme(selectedTheme);
+  }, [selectedTheme]);
 
   /**
    * Handle theme selection by user
    * Updates local state and notifies parent component
-   * 
-   * @function handleThemeSelect
-   * @param {ThemeType} theme - Selected theme
    */
   const handleThemeSelect = (theme: ThemeType): void => {
     setSelectedTheme(theme);
@@ -226,47 +174,11 @@ const ThemeSelector: React.FC<ThemeSelectorProps> = ({
 
   /**
    * Reset theme selection to system default
-   * 
-   * @function resetToDefault
    */
   const resetToDefault = (): void => {
     const defaultTheme: ThemeType = 'system';
-    setSelectedTheme(defaultTheme);
-    onThemeChange(defaultTheme);
+    handleThemeSelect(defaultTheme);
   };
-
-  /**
-   * Effect to apply theme whenever selectedTheme changes
-   * Ensures document reflects current theme selection
-   */
-  useEffect(() => {
-    applyThemeToDocument(selectedTheme);
-  }, [selectedTheme]);
-
-  /**
-   * Effect to listen for system theme changes when in 'system' mode
-   * Automatically updates theme when system preference changes
-   */
-  useEffect(() => {
-    // Only listen for system changes when in system mode
-    if (selectedTheme !== 'system') return;
-
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-
-    /**
-     * Handler for system theme changes
-     * Re-applies system theme when preference changes
-     */
-    const handleChange = (): void => {
-      applyThemeToDocument('system');
-    };
-
-    // Add event listener for system theme changes
-    mediaQuery.addEventListener('change', handleChange);
-    
-    // Cleanup event listener on unmount or theme change
-    return () => mediaQuery.removeEventListener('change', handleChange);
-  }, [selectedTheme]);
 
   return (
     <div className={`space-y-6 ${className}`}>
@@ -291,11 +203,10 @@ const ThemeSelector: React.FC<ThemeSelectorProps> = ({
           <button
             key={theme.id}
             onClick={() => handleThemeSelect(theme.id)}
-            className={`relative p-4 rounded-xl border-2 text-left transition-all ${
-              selectedTheme === theme.id
-                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800/50'
-            }`}
+            className={`relative p-4 rounded-xl border-2 text-left transition-all ${selectedTheme === theme.id
+              ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+              : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800/50'
+              }`}
             aria-label={`Select ${theme.name} theme`}
             aria-pressed={selectedTheme === theme.id}
           >
@@ -327,48 +238,44 @@ const ThemeSelector: React.FC<ThemeSelectorProps> = ({
               <div className="flex h-12">
                 {/* Sidebar preview area */}
                 <div
-                  className={`w-1/4 ${
-                    theme.id === 'light'
-                      ? 'bg-slate-100'
-                      : theme.id === 'dark'
-                        ? 'bg-slate-800'
-                        : theme.id === 'high-contrast'
-                          ? 'bg-slate-900'
-                          : 'bg-slate-100 dark:bg-slate-800'
-                  }`}
+                  className={`w-1/4 ${theme.id === 'light'
+                    ? 'bg-slate-100'
+                    : theme.id === 'dark'
+                      ? 'bg-slate-800'
+                      : theme.id === 'high-contrast'
+                        ? 'bg-slate-900'
+                        : 'bg-slate-100 dark:bg-slate-800'
+                    }`}
                   aria-hidden="true"
                 />
 
                 {/* Main content preview area */}
                 <div
-                  className={`flex-1 ${
-                    theme.id === 'light'
-                      ? 'bg-white'
-                      : theme.id === 'dark'
-                        ? 'bg-slate-900'
-                        : theme.id === 'high-contrast'
-                          ? 'bg-black'
-                          : 'bg-white dark:bg-slate-900'
-                  }`}
+                  className={`flex-1 ${theme.id === 'light'
+                    ? 'bg-white'
+                    : theme.id === 'dark'
+                      ? 'bg-slate-900'
+                      : theme.id === 'high-contrast'
+                        ? 'bg-black'
+                        : 'bg-white dark:bg-slate-900'
+                    }`}
                   aria-hidden="true"
                 >
                   <div className="flex items-center gap-2 p-2">
                     {/* UI element preview */}
                     <div
-                      className={`w-2 h-2 rounded-full ${
-                        theme.id === 'high-contrast' ? 'bg-yellow-400' : 'bg-blue-500'
-                      }`}
+                      className={`w-2 h-2 rounded-full ${theme.id === 'high-contrast' ? 'bg-yellow-400' : 'bg-blue-500'
+                        }`}
                     />
                     <div
-                      className={`h-2 rounded ${
-                        theme.id === 'light'
-                          ? 'bg-slate-200'
-                          : theme.id === 'dark'
-                            ? 'bg-slate-700'
-                            : theme.id === 'high-contrast'
-                              ? 'bg-white'
-                              : 'bg-slate-200 dark:bg-slate-700'
-                      }`}
+                      className={`h-2 rounded ${theme.id === 'light'
+                        ? 'bg-slate-200'
+                        : theme.id === 'dark'
+                          ? 'bg-slate-700'
+                          : theme.id === 'high-contrast'
+                            ? 'bg-white'
+                            : 'bg-slate-200 dark:bg-slate-700'
+                        }`}
                       style={{ width: '60%' }}
                     />
                   </div>
@@ -397,21 +304,20 @@ const ThemeSelector: React.FC<ThemeSelectorProps> = ({
               {themeOptions.find(t => t.id === selectedTheme)?.description}
             </p>
           </div>
-          <div 
+          <div
             className="flex items-center gap-2 px-3 py-1 bg-white dark:bg-slate-700 rounded-full border border-slate-200 dark:border-slate-600"
             aria-label={`Current theme: ${themeOptions.find(t => t.id === selectedTheme)?.name}`}
           >
             {/* Theme color dot */}
             <div
-              className={`w-2 h-2 rounded-full ${
-                selectedTheme === 'light'
-                  ? 'bg-yellow-500'
-                  : selectedTheme === 'dark'
-                    ? 'bg-indigo-600'
-                    : selectedTheme === 'system'
-                      ? 'bg-slate-600'
-                      : 'bg-orange-600'
-              }`}
+              className={`w-2 h-2 rounded-full ${selectedTheme === 'light'
+                ? 'bg-yellow-500'
+                : selectedTheme === 'dark'
+                  ? 'bg-indigo-600'
+                  : selectedTheme === 'system'
+                    ? 'bg-slate-600'
+                    : 'bg-orange-600'
+                }`}
             />
             <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
               {themeOptions.find(t => t.id === selectedTheme)?.name}

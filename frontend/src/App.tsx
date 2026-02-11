@@ -1,5 +1,7 @@
+import { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './services/AuthContext';
+import { initializeTheme } from './utils/theme';
 import RegisterPage from './pages/RegisterPage';
 import RegistrationSuccess from './pages/RegistrationSuccess'; // NEW
 import LoginPage from './pages/LoginPage';
@@ -51,6 +53,12 @@ import RoomPage from './pages/RoomPage';
  * - Redirects: Root path and 404 fallback
  */
 function App() {
+  useEffect(() => {
+    // Initialize theme including system preference listener
+    const cleanup = initializeTheme();
+    return cleanup;
+  }, []);
+
   return (
     // Wrap entire application with authentication provider
     // AuthProvider makes authentication state available to all child components
@@ -66,37 +74,37 @@ function App() {
             replace prevents browser history entry for the redirect
           */}
           <Route path="/" element={<Navigate to="/login" replace />} />
-          
+
           {/* 
             ======================
             Authentication Routes
             ======================
             These routes are accessible without authentication
           */}
-          
+
           {/* User login page */}
           <Route path="/login" element={<LoginPage />} />
-          
+
           {/* User registration page */}
           <Route path="/register" element={<RegisterPage />} />
-          
+
           {/* 
             Registration Success Page (NEW)
             Intermediate page shown after successful registration
             Provides feedback and next steps for new users
           */}
           <Route path="/registration-success" element={<RegistrationSuccess />} />
-          
+
           {/* Password recovery flow */}
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
-          
+
           {/* 
             Email verification landing page
             Users arrive here after clicking verification links in emails
           */}
           <Route path="/verify-email" element={<EmailVerificationPage />} />
-          
+
           {/* 
             ======================
             Legal & Compliance Routes
@@ -105,7 +113,7 @@ function App() {
           */}
           <Route path="/terms-of-service" element={<TermsOfServicePage />} />
           <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
-          
+
           {/* 
             ======================
             Protected Application Routes
@@ -113,20 +121,20 @@ function App() {
             These routes should be protected by authentication guards
             In production, consider adding route guards or protected route components
           */}
-          
+
           {/* Main application dashboard */}
           <Route path="/dashboard" element={<Dashboard />} />
-          
+
           {/* User profile management */}
           <Route path="/profile" element={<ProfilePage />} />
-          
+
           {/* 
             Collaborative room workspace
             Dynamic route with room ID parameter
             Accessible at: /room/:id where :id is the room identifier
           */}
           <Route path="/room/:id" element={<RoomPage />} />
-          
+
           {/* 
             ======================
             Fallback & Error Routes

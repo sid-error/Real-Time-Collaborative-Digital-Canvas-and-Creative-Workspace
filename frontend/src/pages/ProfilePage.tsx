@@ -1,27 +1,24 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import ThemeSelector from '../components/ui/ThemeSelector';
 import CharacterCounter from '../components/ui/CharacterCounter';
 import FileUpload from '../components/ui/FileUpload';
 import ImageCropper from '../components/ui/ImageCropper';
 import { useAuth } from '../services/AuthContext';
 import { Sidebar } from '../components/Sidebar';
-import { 
-  User, Shield, Bell, Palette, Camera, Save, Trash2, AlertTriangle, 
-  Lock, Key, X, Check, Sun, Moon, Monitor, Contrast, Keyboard,
-  Mail, Volume2, VolumeX, Clock, Zap, Settings, Eye, EyeOff
+import {
+  User, Shield, Bell, Palette, Camera, Save, Trash2, AlertTriangle,
+  Lock, Key, X, Sun, Moon, Monitor, Keyboard,
+  Volume2, VolumeX, Clock, Zap, Settings
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import DeletionSurveyModal from '../components/DeletionSurveyModal';
-import { 
-  requestAccountDeletion, 
-  hasPendingDeletion, 
-  getPendingDeletion, 
-  cancelAccountDeletion, 
-  clearUserData 
+import {
+  requestAccountDeletion
 } from '../services/accountDeletionService';
 // Import the profile update service
 import { updateProfile } from '../utils/authService';
+import { applyTheme, getStoredTheme, setStoredTheme } from '../utils/theme';
 
 /**
  * Interface for user notification preferences
@@ -102,7 +99,7 @@ interface ProfileTab {
  * @returns {JSX.Element} The complete profile settings interface
  */
 const ProfilePage: React.FC = () => {
-  const { user, updateUser, logout } = useAuth();
+  const { user, updateUser } = useAuth();
   const [activeTab, setActiveTab] = useState<string>('personal');
 
   // Profile picture and Identity states
@@ -115,11 +112,11 @@ const ProfilePage: React.FC = () => {
   const [displayNameError, setDisplayNameError] = useState<string>('');
 
   // UI / Logic states
-  const [notifications, setNotifications] = useState<NotificationSettings>({ 
-    email: true, 
-    push: false, 
-    reminders: true, 
-    marketing: false, 
+  const [notifications, setNotifications] = useState<NotificationSettings>({
+    email: true,
+    push: false,
+    reminders: true,
+    marketing: false,
     securityAlerts: true,
     soundEnabled: true,
     desktopNotifications: false,
@@ -145,12 +142,11 @@ const ProfilePage: React.FC = () => {
   const [password, setPassword] = useState<string>('');
   const [deletionReason, setDeletionReason] = useState<string>('');
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
-  const [pendingDeletion, setPendingDeletion] = useState<any>(null);
   const [deleteConfirmationText, setDeleteConfirmationText] = useState<string>('');
 
-  const [theme, setTheme] = useState<'light' | 'dark' | 'system' | 'high-contrast'>(
-    (user?.theme as any) || 'system'
-  );
+  const [theme, setTheme] = useState<'light' | 'dark' | 'system' | 'high-contrast'>((() => {
+    return (user?.theme as any) || (getStoredTheme() as any) || 'system';
+  })());
 
   /**
    * Profile tab configuration
@@ -170,9 +166,7 @@ const ProfilePage: React.FC = () => {
    * @effect
    * @listens [] (runs once on mount)
    */
-  useEffect(() => {
-    if (hasPendingDeletion()) setPendingDeletion(getPendingDeletion());
-  }, []);
+
 
   /**
    * Handles theme change and applies it globally
@@ -185,33 +179,23 @@ const ProfilePage: React.FC = () => {
    * handleThemeChange('dark');
    * ```
    */
+  /**
+   * Handles theme change and applies it globally
+   * Updates the theme in user context, localStorage, and applies CSS classes
+   * 
+   * @param {('light' | 'dark' | 'system' | 'high-contrast')} newTheme - The new theme to apply
+   */
   const handleThemeChange = (newTheme: 'light' | 'dark' | 'system' | 'high-contrast'): void => {
     setTheme(newTheme);
-  
+
     // Update user context
     if (updateUser) {
       updateUser({ theme: newTheme });
     }
-  
-    // Save to localStorage
-    localStorage.setItem('userTheme', newTheme);
-  
-    // Apply theme to document
-    const html = document.documentElement;
-    html.classList.remove('light', 'dark', 'high-contrast');
-  
-    if (newTheme === 'system') {
-      // Follow system preference
-      if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-        html.classList.add('dark');
-      } else {
-        html.classList.add('light');
-      }
-    } else if (newTheme === 'high-contrast') {
-      html.classList.add('high-contrast', 'dark');
-    } else {
-      html.classList.add(newTheme);
-    }
+
+    // Save to localStorage and apply
+    setStoredTheme(newTheme);
+    applyTheme(newTheme);
   };
 
   /**
@@ -241,7 +225,7 @@ const ProfilePage: React.FC = () => {
         keyboardShortcuts
       };
 
-      const result = await updateProfile(profileData);
+      const result = await updateProfile(profileData) as any;
 
       if (result.success) {
         updateUser(result.user); // Synchronize Global Auth State
@@ -336,7 +320,7 @@ const ProfilePage: React.FC = () => {
    */
   const toggleNotification = (key: keyof NotificationSettings): void => {
     if (key === 'notificationFrequency') return; // Handle frequency separately
-    
+
     setNotifications(prev => ({
       ...prev,
       [key]: !prev[key]
@@ -484,6 +468,7 @@ const ProfilePage: React.FC = () => {
     setDeletionReason('');
   };
 
+
   return (
     <div className="flex min-h-screen bg-slate-50 dark:bg-slate-900">
       <Sidebar />
@@ -499,11 +484,10 @@ const ProfilePage: React.FC = () => {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
-                  activeTab === tab.id 
-                    ? 'bg-blue-600 text-white shadow-md' 
-                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
-                }`}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === tab.id
+                  ? 'bg-blue-600 text-white shadow-md'
+                  : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
+                  }`}
               >
                 <tab.icon size={20} />
                 <span className="font-medium">{tab.label}</span>
@@ -513,7 +497,7 @@ const ProfilePage: React.FC = () => {
 
           {/* Settings Panel */}
           <div className="flex-1 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 p-8">
-            
+
             {/* ========== PERSONAL INFO TAB ========== */}
             {activeTab === 'personal' && (
               <div className="space-y-6">
@@ -521,23 +505,23 @@ const ProfilePage: React.FC = () => {
                 <div className="flex flex-col md:flex-row items-start md:items-center gap-6 mb-8">
                   <div className="relative group">
                     <div className="w-32 h-32 rounded-full bg-slate-200 dark:bg-slate-600 border-4 border-white dark:border-slate-800 shadow-md overflow-hidden">
-                      <img 
-                        src={croppedImage || "https://api.dicebear.com/7.x/avataaars/svg?seed=User"} 
-                        alt="Avatar" 
-                        className="w-full h-full object-cover" 
+                      <img
+                        src={croppedImage || "https://api.dicebear.com/7.x/avataaars/svg?seed=User"}
+                        alt="Avatar"
+                        className="w-full h-full object-cover"
                       />
                     </div>
                     <div className="absolute bottom-0 right-0 flex gap-1">
-                      <button 
-                        onClick={() => document.getElementById('pic-upload')?.click()} 
+                      <button
+                        onClick={() => document.getElementById('pic-upload')?.click()}
                         className="bg-blue-600 text-white p-2 rounded-full border-2 border-white dark:border-slate-800 shadow-md hover:bg-blue-700 transition-colors"
                         title="Upload new picture"
                       >
                         <Camera size={16} />
                       </button>
                       {croppedImage && (
-                        <button 
-                          onClick={() => setShowRemoveConfirm(true)} 
+                        <button
+                          onClick={() => setShowRemoveConfirm(true)}
                           className="bg-red-600 text-white p-2 rounded-full border-2 border-white dark:border-slate-800 shadow-md hover:bg-red-700 transition-colors"
                           title="Remove picture"
                         >
@@ -553,38 +537,37 @@ const ProfilePage: React.FC = () => {
                     <p className="text-slate-500 dark:text-slate-400 text-sm mb-4">
                       Upload a new profile picture. Supported formats: JPG, PNG, WebP (Max 5MB)
                     </p>
-                    <FileUpload 
-                      onFileSelect={handleProfilePictureSelect} 
-                      acceptedFormats={['.jpg', '.png', '.webp']} 
-                      maxSizeMB={5} 
+                    <FileUpload
+                      onFileSelect={handleProfilePictureSelect}
+                      acceptedFormats={['.jpg', '.png', '.webp']}
+                      maxSizeMB={5}
                     />
                   </div>
                 </div>
 
-                <input 
-                  type="file" 
-                  id="pic-upload" 
-                  className="hidden" 
-                  accept="image/*" 
-                  onChange={(e) => handleProfilePictureSelect(e.target.files?.[0] || null)} 
+                <input
+                  type="file"
+                  id="pic-upload"
+                  className="hidden"
+                  accept="image/*"
+                  onChange={(e) => handleProfilePictureSelect(e.target.files?.[0] || null)}
                 />
 
                 {/* Personal Info Form */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-                      Display Name 
+                      Display Name
                     </label>
-                    <input 
-                      type="text" 
-                      value={displayName} 
-                      onChange={(e) => { 
-                        setDisplayName(e.target.value); 
-                        validateDisplayName(e.target.value); 
-                      }} 
-                      className={`w-full px-4 py-2 border rounded-lg outline-none bg-white dark:bg-slate-700 text-slate-900 dark:text-white ${
-                        displayNameError ? 'border-red-500' : 'border-slate-200 dark:border-slate-600'
-                      }`}
+                    <input
+                      type="text"
+                      value={displayName}
+                      onChange={(e) => {
+                        setDisplayName(e.target.value);
+                        validateDisplayName(e.target.value);
+                      }}
+                      className={`w-full px-4 py-2 border rounded-lg outline-none bg-white dark:bg-slate-700 text-slate-900 dark:text-white ${displayNameError ? 'border-red-500' : 'border-slate-200 dark:border-slate-600'
+                        }`}
                       placeholder="Enter your display name"
                     />
                     {displayNameError && (
@@ -593,26 +576,26 @@ const ProfilePage: React.FC = () => {
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-                      Email 
+                      Email
                     </label>
-                    <input 
-                      type="email" 
-                      value={user?.email || ''} 
-                      className="w-full px-4 py-2 border border-slate-200 dark:border-slate-600 rounded-lg bg-slate-50 dark:bg-slate-700 text-slate-500 dark:text-slate-400" 
-                      disabled 
+                    <input
+                      type="email"
+                      value={user?.email || ''}
+                      className="w-full px-4 py-2 border border-slate-200 dark:border-slate-600 rounded-lg bg-slate-50 dark:bg-slate-700 text-slate-500 dark:text-slate-400"
+                      disabled
                     />
                   </div>
                   <div className="md:col-span-2 space-y-2">
                     <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-                      Bio 
+                      Bio
                     </label>
-                    <textarea 
-                      value={bio} 
-                      onChange={(e) => setBio(e.target.value)} 
-                      rows={3} 
-                      maxLength={500} 
+                    <textarea
+                      value={bio}
+                      onChange={(e) => setBio(e.target.value)}
+                      rows={3}
+                      maxLength={500}
                       className="w-full px-4 py-2 border border-slate-200 dark:border-slate-600 rounded-lg resize-none bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
-                      placeholder="Share your creative journey..." 
+                      placeholder="Share your creative journey..."
                     />
                     <CharacterCounter currentLength={bio.length} maxLength={500} />
                   </div>
@@ -646,11 +629,10 @@ const ProfilePage: React.FC = () => {
                   <div className="flex items-center gap-4">
                     <button
                       onClick={() => handleThemeChange('light')}
-                      className={`flex-1 p-4 rounded-xl border-2 transition-all ${
-                        theme === 'light'
-                          ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                          : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
-                      }`}
+                      className={`flex-1 p-4 rounded-xl border-2 transition-all ${theme === 'light'
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                        : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
+                        }`}
                     >
                       <div className="flex flex-col items-center gap-2">
                         <Sun className="w-6 h-6 text-yellow-600" />
@@ -659,11 +641,10 @@ const ProfilePage: React.FC = () => {
                     </button>
                     <button
                       onClick={() => handleThemeChange('dark')}
-                      className={`flex-1 p-4 rounded-xl border-2 transition-all ${
-                        theme === 'dark'
-                          ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                          : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
-                      }`}
+                      className={`flex-1 p-4 rounded-xl border-2 transition-all ${theme === 'dark'
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                        : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
+                        }`}
                     >
                       <div className="flex flex-col items-center gap-2">
                         <Moon className="w-6 h-6 text-indigo-400" />
@@ -672,11 +653,10 @@ const ProfilePage: React.FC = () => {
                     </button>
                     <button
                       onClick={() => handleThemeChange('system')}
-                      className={`flex-1 p-4 rounded-xl border-2 transition-all ${
-                        theme === 'system'
-                          ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                          : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
-                      }`}
+                      className={`flex-1 p-4 rounded-xl border-2 transition-all ${theme === 'system'
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                        : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
+                        }`}
                     >
                       <div className="flex flex-col items-center gap-2">
                         <Monitor className="w-6 h-6 text-slate-600 dark:text-slate-400" />
@@ -726,22 +706,20 @@ const ProfilePage: React.FC = () => {
                       </p>
                     </div>
                     <div className="relative">
-                      <input 
-                        type="checkbox" 
-                        checked={notifications.push} 
+                      <input
+                        type="checkbox"
+                        checked={notifications.push}
                         onChange={() => toggleNotification('push')}
                         className="sr-only"
                         id="in-app-notifications"
                       />
-                      <label 
+                      <label
                         htmlFor="in-app-notifications"
-                        className={`block w-12 h-6 rounded-full cursor-pointer transition-colors ${
-                          notifications.push ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-600'
-                        }`}
+                        className={`block w-12 h-6 rounded-full cursor-pointer transition-colors ${notifications.push ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-600'
+                          }`}
                       >
-                        <span className={`block w-5 h-5 mt-0.5 ml-0.5 rounded-full bg-white transition-transform ${
-                          notifications.push ? 'transform translate-x-6' : ''
-                        }`}></span>
+                        <span className={`block w-5 h-5 mt-0.5 ml-0.5 rounded-full bg-white transition-transform ${notifications.push ? 'transform translate-x-6' : ''
+                          }`}></span>
                       </label>
                     </div>
                   </div>
@@ -755,22 +733,20 @@ const ProfilePage: React.FC = () => {
                       </p>
                     </div>
                     <div className="relative">
-                      <input 
-                        type="checkbox" 
-                        checked={notifications.email} 
+                      <input
+                        type="checkbox"
+                        checked={notifications.email}
                         onChange={() => toggleNotification('email')}
                         className="sr-only"
                         id="email-notifications"
                       />
-                      <label 
+                      <label
                         htmlFor="email-notifications"
-                        className={`block w-12 h-6 rounded-full cursor-pointer transition-colors ${
-                          notifications.email ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-600'
-                        }`}
+                        className={`block w-12 h-6 rounded-full cursor-pointer transition-colors ${notifications.email ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-600'
+                          }`}
                       >
-                        <span className={`block w-5 h-5 mt-0.5 ml-0.5 rounded-full bg-white transition-transform ${
-                          notifications.email ? 'transform translate-x-6' : ''
-                        }`}></span>
+                        <span className={`block w-5 h-5 mt-0.5 ml-0.5 rounded-full bg-white transition-transform ${notifications.email ? 'transform translate-x-6' : ''
+                          }`}></span>
                       </label>
                     </div>
                   </div>
@@ -784,22 +760,20 @@ const ProfilePage: React.FC = () => {
                       </p>
                     </div>
                     <div className="relative">
-                      <input 
-                        type="checkbox" 
-                        checked={notifications.desktopNotifications} 
+                      <input
+                        type="checkbox"
+                        checked={notifications.desktopNotifications}
                         onChange={() => toggleNotification('desktopNotifications')}
                         className="sr-only"
                         id="desktop-notifications"
                       />
-                      <label 
+                      <label
                         htmlFor="desktop-notifications"
-                        className={`block w-12 h-6 rounded-full cursor-pointer transition-colors ${
-                          notifications.desktopNotifications ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-600'
-                        }`}
+                        className={`block w-12 h-6 rounded-full cursor-pointer transition-colors ${notifications.desktopNotifications ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-600'
+                          }`}
                       >
-                        <span className={`block w-5 h-5 mt-0.5 ml-0.5 rounded-full bg-white transition-transform ${
-                          notifications.desktopNotifications ? 'transform translate-x-6' : ''
-                        }`}></span>
+                        <span className={`block w-5 h-5 mt-0.5 ml-0.5 rounded-full bg-white transition-transform ${notifications.desktopNotifications ? 'transform translate-x-6' : ''
+                          }`}></span>
                       </label>
                     </div>
                   </div>
@@ -819,22 +793,20 @@ const ProfilePage: React.FC = () => {
                         <VolumeX className="w-5 h-5 text-slate-400" />
                       )}
                       <div className="relative">
-                        <input 
-                          type="checkbox" 
-                          checked={notifications.soundEnabled} 
+                        <input
+                          type="checkbox"
+                          checked={notifications.soundEnabled}
                           onChange={() => toggleNotification('soundEnabled')}
                           className="sr-only"
                           id="sound-notifications"
                         />
-                        <label 
+                        <label
                           htmlFor="sound-notifications"
-                          className={`block w-12 h-6 rounded-full cursor-pointer transition-colors ${
-                            notifications.soundEnabled ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-600'
-                          }`}
+                          className={`block w-12 h-6 rounded-full cursor-pointer transition-colors ${notifications.soundEnabled ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-600'
+                            }`}
                         >
-                          <span className={`block w-5 h-5 mt-0.5 ml-0.5 rounded-full bg-white transition-transform ${
-                            notifications.soundEnabled ? 'transform translate-x-6' : ''
-                          }`}></span>
+                          <span className={`block w-5 h-5 mt-0.5 ml-0.5 rounded-full bg-white transition-transform ${notifications.soundEnabled ? 'transform translate-x-6' : ''
+                            }`}></span>
                         </label>
                       </div>
                     </div>
@@ -851,33 +823,30 @@ const ProfilePage: React.FC = () => {
                     <div className="flex flex-wrap gap-2">
                       <button
                         onClick={() => handleFrequencyChange('realtime')}
-                        className={`px-4 py-2 rounded-lg border transition-colors flex items-center gap-2 ${
-                          notifications.notificationFrequency === 'realtime'
-                            ? 'bg-blue-600 text-white border-blue-600'
-                            : 'border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
-                        }`}
+                        className={`px-4 py-2 rounded-lg border transition-colors flex items-center gap-2 ${notifications.notificationFrequency === 'realtime'
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
+                          }`}
                       >
                         <Zap size={16} />
                         Real-time
                       </button>
                       <button
                         onClick={() => handleFrequencyChange('daily')}
-                        className={`px-4 py-2 rounded-lg border transition-colors flex items-center gap-2 ${
-                          notifications.notificationFrequency === 'daily'
-                            ? 'bg-blue-600 text-white border-blue-600'
-                            : 'border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
-                        }`}
+                        className={`px-4 py-2 rounded-lg border transition-colors flex items-center gap-2 ${notifications.notificationFrequency === 'daily'
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
+                          }`}
                       >
                         <Clock size={16} />
                         Daily Digest
                       </button>
                       <button
                         onClick={() => handleFrequencyChange('weekly')}
-                        className={`px-4 py-2 rounded-lg border transition-colors flex items-center gap-2 ${
-                          notifications.notificationFrequency === 'weekly'
-                            ? 'bg-blue-600 text-white border-blue-600'
-                            : 'border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
-                        }`}
+                        className={`px-4 py-2 rounded-lg border transition-colors flex items-center gap-2 ${notifications.notificationFrequency === 'weekly'
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
+                          }`}
                       >
                         <Calendar size={16} />
                         Weekly Summary
@@ -890,9 +859,9 @@ const ProfilePage: React.FC = () => {
                     <div className="p-4 border border-slate-100 dark:border-slate-700 rounded-xl">
                       <div className="flex items-center justify-between mb-2">
                         <p className="font-medium text-slate-800 dark:text-white">Meeting Reminders</p>
-                        <input 
-                          type="checkbox" 
-                          checked={notifications.reminders} 
+                        <input
+                          type="checkbox"
+                          checked={notifications.reminders}
                           onChange={() => toggleNotification('reminders')}
                           className="w-4 h-4 text-blue-600 rounded"
                         />
@@ -904,9 +873,9 @@ const ProfilePage: React.FC = () => {
                     <div className="p-4 border border-slate-100 dark:border-slate-700 rounded-xl">
                       <div className="flex items-center justify-between mb-2">
                         <p className="font-medium text-slate-800 dark:text-white">Security Alerts</p>
-                        <input 
-                          type="checkbox" 
-                          checked={notifications.securityAlerts} 
+                        <input
+                          type="checkbox"
+                          checked={notifications.securityAlerts}
                           onChange={() => toggleNotification('securityAlerts')}
                           className="w-4 h-4 text-blue-600 rounded"
                         />
@@ -1081,7 +1050,7 @@ const ProfilePage: React.FC = () => {
                     <AlertTriangle className="text-red-600 dark:text-red-400" size={20} />
                     <h3 className="text-red-800 dark:text-red-300 font-bold">Danger Zone</h3>
                   </div>
-                  
+
                   {showPasswordConfirm ? (
                     <div className="space-y-4">
                       <div className="p-4 bg-white dark:bg-slate-800 border border-red-200 dark:border-red-800 rounded-lg">
@@ -1089,7 +1058,7 @@ const ProfilePage: React.FC = () => {
                         <p className="text-sm text-red-600 dark:text-red-400 mb-3">
                           This action cannot be undone. All your data will be permanently deleted.
                         </p>
-                        
+
                         <div className="space-y-3 mb-4">
                           <div>
                             <label className="block text-sm font-medium text-red-700 dark:text-red-300 mb-1">
@@ -1103,7 +1072,7 @@ const ProfilePage: React.FC = () => {
                               className="w-full px-4 py-2 border border-red-300 dark:border-red-700 rounded-lg bg-white dark:bg-slate-700 text-red-800 dark:text-red-300"
                             />
                           </div>
-                          
+
                           <div>
                             <label className="block text-sm font-medium text-red-700 dark:text-red-300 mb-1">
                               Reason for leaving (optional)
@@ -1121,7 +1090,7 @@ const ProfilePage: React.FC = () => {
                               <option value="other">Other reason</option>
                             </select>
                           </div>
-                          
+
                           <div>
                             <label className="block text-sm font-medium text-red-700 dark:text-red-300 mb-1">
                               Type "DELETE" to confirm
@@ -1136,7 +1105,7 @@ const ProfilePage: React.FC = () => {
                           </div>
                         </div>
                       </div>
-                      
+
                       <div className="flex gap-3">
                         <Button
                           onClick={handleDeleteAccount}
@@ -1174,7 +1143,7 @@ const ProfilePage: React.FC = () => {
             {/* Save Changes Button */}
             <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-700 flex justify-end">
               <Button onClick={handleSaveChanges} className="gap-2">
-                <Save size={18} /> Save Changes 
+                <Save size={18} /> Save Changes
               </Button>
             </div>
           </div>
@@ -1182,19 +1151,19 @@ const ProfilePage: React.FC = () => {
       </main>
 
       {/* Modals */}
-      <DeletionSurveyModal 
-        isOpen={showSurveyModal} 
-        onClose={() => setShowSurveyModal(false)} 
-        onComplete={() => window.location.href = '/'} 
-        userEmail={user?.email || ''} 
+      <DeletionSurveyModal
+        isOpen={showSurveyModal}
+        onClose={() => setShowSurveyModal(false)}
+        onComplete={() => window.location.href = '/'}
+        userEmail={user?.email || ''}
       />
 
       {showImageCropper && selectedImage && (
-        <ImageCropper 
-          imageSrc={URL.createObjectURL(selectedImage)} 
-          onCropComplete={handleCropComplete} 
-          onCancel={() => setShowImageCropper(false)} 
-          circularCrop={true} 
+        <ImageCropper
+          imageSrc={URL.createObjectURL(selectedImage)}
+          onCropComplete={handleCropComplete}
+          onCancel={() => setShowImageCropper(false)}
+          circularCrop={true}
         />
       )}
 
@@ -1207,18 +1176,18 @@ const ProfilePage: React.FC = () => {
         <div className="space-y-4">
           <div className="flex justify-center mb-4">
             <div className="w-24 h-24 rounded-full bg-slate-200 dark:bg-slate-600 border-4 border-white dark:border-slate-800 overflow-hidden">
-              <img 
-                src={croppedImage || "https://api.dicebear.com/7.x/avataaars/svg?seed=User"} 
-                alt="Current profile" 
+              <img
+                src={croppedImage || "https://api.dicebear.com/7.x/avataaars/svg?seed=User"}
+                alt="Current profile"
                 className="w-full h-full object-cover"
               />
             </div>
           </div>
-          
+
           <p className="text-slate-600 dark:text-slate-300 text-center">
             Are you sure you want to remove your profile picture? This will revert to the default avatar.
           </p>
-          
+
           <div className="flex gap-3 pt-4">
             <Button
               onClick={() => setShowRemoveConfirm(false)}

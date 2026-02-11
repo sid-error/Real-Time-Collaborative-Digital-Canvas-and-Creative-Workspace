@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
+import { initializeTheme } from './utils/theme';
 
 /**
  * Main Entry Point - React Application Bootstrap
@@ -11,15 +12,20 @@ import './index.css';
  * the application within the DOM.
  * 
  * Key Responsibilities:
- * 1. Initializes React DOM rendering
- * 2. Wraps application in React.StrictMode for development checks
- * 3. Imports global CSS styles
- * 4. Renders the App component as the root
+ * 1. Initializes theme BEFORE React renders (prevents flashing)
+ * 2. Initializes React DOM rendering
+ * 3. Wraps application in React.StrictMode for development checks
+ * 4. Imports global CSS styles
+ * 5. Renders the App component as the root
  * 
  * @file main.tsx
  * @version 1.0.0
  * 
  * @remarks
+ * Theme initialization happens BEFORE React rendering to prevent
+ * a flash of incorrect theme on page load. This is crucial for
+ * providing a smooth user experience.
+ * 
  * ReactDOM.createRoot() creates a React root for concurrent features.
  * The non-null assertion (!) is safe because index.html has a #root element.
  * 
@@ -40,6 +46,10 @@ import './index.css';
  * </html>
  * ```
  */
+
+// Initialize theme BEFORE React renders to prevent theme flashing
+initializeTheme();
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   /**
    * React.StrictMode enables additional development-only checks

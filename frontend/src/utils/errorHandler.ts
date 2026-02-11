@@ -106,7 +106,7 @@ export const AUTH_ERRORS = {
  * and returns appropriate ErrorMessage objects for display.
  * 
  * @function getAuthErrorMessage
- * @param {any} error - Raw error from API call, network request, or thrown error
+ * @param {unknown} error - Raw error from API call, network request, or thrown error
  * @param {string} [defaultMessage='An unexpected error occurred'] - Fallback message
  * @returns {ErrorMessage} User-friendly error message object
  * 
@@ -120,23 +120,9 @@ export const AUTH_ERRORS = {
  *   displayErrorMessage(userError);
  * }
  * ```
- * 
- * @example
- * ```typescript
- * // Handle string errors
- * const errorMessage = getAuthErrorMessage('Invalid credentials');
- * // Returns: AUTH_ERRORS.INVALID_CREDENTIALS
- * ```
- * 
- * @remarks
- * Error matching priority:
- * 1. String pattern matching (case-insensitive)
- * 2. HTTP status codes from error.response
- * 3. Error.message content
- * 4. Default error message
  */
 export const getAuthErrorMessage = (
-  error: any, 
+  error: unknown, 
   defaultMessage: string = 'An unexpected error occurred'
 ): ErrorMessage => {
   // Handle string errors by pattern matching
@@ -156,18 +142,24 @@ export const getAuthErrorMessage = (
     }
   }
   
+  // Cast to access properties common in HTTP error objects
+  const err = error as { 
+    response?: { status?: number }; 
+    message?: string;
+  };
+  
   // Handle error objects with HTTP response status codes
-  if (error?.response?.status === 401) {
+  if (err?.response?.status === 401) {
     return AUTH_ERRORS.INVALID_CREDENTIALS;
-  } else if (error?.response?.status === 403) {
+  } else if (err?.response?.status === 403) {
     return AUTH_ERRORS.ACCOUNT_LOCKED;
-  } else if (error?.response?.status === 423) {
+  } else if (err?.response?.status === 423) {
     return AUTH_ERRORS.EMAIL_NOT_VERIFIED;
-  } else if (error?.response?.status === 429) {
+  } else if (err?.response?.status === 429) {
     return AUTH_ERRORS.RATE_LIMITED;
-  } else if (error?.response?.status === 500) {
+  } else if (err?.response?.status === 500) {
     return AUTH_ERRORS.SERVER_ERROR;
-  } else if (error?.message?.includes('Network Error')) {
+  } else if (err?.message?.includes('Network Error')) {
     return AUTH_ERRORS.NETWORK_ERROR;
   }
   
@@ -189,31 +181,6 @@ export const getAuthErrorMessage = (
  * @function displayErrorMessage
  * @param {ErrorMessage} error - Error message object to display
  * @returns {void}
- * 
- * @example
- * ```typescript
- * // Display authentication error
- * displayErrorMessage(AUTH_ERRORS.INVALID_CREDENTIALS);
- * ```
- * 
- * @example
- * ```typescript
- * // Using with getAuthErrorMessage
- * try {
- *   await apiCall();
- * } catch (error) {
- *   const userError = getAuthErrorMessage(error);
- *   displayErrorMessage(userError);
- * }
- * ```
- * 
- * @remarks
- * Current implementation uses alert() for simplicity.
- * In production, replace with:
- * - Toast notifications (react-hot-toast, sonner, etc.)
- * - Modal dialogs for critical errors
- * - Inline form error displays
- * - Notification systems with action buttons
  */
 export const displayErrorMessage = (error: ErrorMessage): void => {
   // Map message types to emoji icons
@@ -235,7 +202,7 @@ export const displayErrorMessage = (error: ErrorMessage): void => {
  * to help with debugging and monitoring.
  * 
  * @function logError
- * @param {any} error - Error object, string, or any error value
+ * @param {unknown} error - Error object, string, or any error value
  * @param {string} [context='Authentication'] - Context where error occurred
  * @returns {void}
  * 
@@ -249,31 +216,20 @@ export const displayErrorMessage = (error: ErrorMessage): void => {
  *   // Handle error...
  * }
  * ```
- * 
- * @example
- * ```typescript
- * // Log with custom context
- * logError(new Error('Component failed'), 'UserProfileComponent');
- * ```
- * 
- * @remarks
- * Logs include:
- * - Timestamp for tracking when errors occur
- * - Error message and stack trace
- * - Context information
- * - Response data (if available)
- * 
- * In production, integrate with:
- * - Sentry/Rollbar for error monitoring
- * - Log aggregation services (Datadog, ELK)
- * - Server-side logging
  */
-export const logError = (error: any, context: string = 'Authentication'): void => {
+export const logError = (error: unknown, context: string = 'Authentication'): void => {
+  const err = error as { 
+    message?: string; 
+    stack?: string; 
+    code?: string; 
+    response?: { data?: unknown };
+  };
+
   console.error(`[${context}]`, {
     timestamp: new Date().toISOString(),
-    error: error?.message || error,
-    stack: error?.stack,
-    code: error?.code,
-    response: error?.response?.data
+    error: err?.message || String(error),
+    stack: err?.stack,
+    code: err?.code,
+    response: err?.response?.data
   });
 };

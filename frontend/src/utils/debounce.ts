@@ -60,7 +60,7 @@
  * debouncing. It properly clears previous timeouts to prevent memory leaks
  * and ensures only the most recent call is executed.
  */
-export function debounce<T extends (...args: any[]) => any>(
+export function debounce<T extends (...args: unknown[]) => unknown>(
   func: T,
   wait: number
 ): (...args: Parameters<T>) => void {

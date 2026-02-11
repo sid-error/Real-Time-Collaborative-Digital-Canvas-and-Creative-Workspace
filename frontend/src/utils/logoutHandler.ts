@@ -213,12 +213,12 @@ export const isSignedIn = (): boolean => {
  * Handles JSON parsing errors gracefully.
  * 
  * @function getCurrentUser
- * @returns {any} Parsed user object or null if not found/invalid
+ * @returns {unknown} Parsed user object or null if not found/invalid
  * 
  * @example
  * ```typescript
  * // Get user data for display
- * const user = getCurrentUser();
+ * const user = getCurrentUser() as any;
  * if (user) {
  *   console.log(`Welcome back, ${user.displayName || user.email}`);
  * }
@@ -228,7 +228,7 @@ export const isSignedIn = (): boolean => {
  * ```typescript
  * // Use user data in UI
  * function UserAvatar() {
- *   const user = getCurrentUser();
+ *   const user = getCurrentUser() as any;
  *   return user?.avatar 
  *     ? <img src={user.avatar} alt={user.displayName} />
  *     : <DefaultAvatar />;
@@ -244,7 +244,7 @@ export const isSignedIn = (): boolean => {
  * Consider implementing a more robust user data management system
  * with proper typing and validation.
  */
-export const getCurrentUser = (): any => {
+export const getCurrentUser = (): unknown => {
   try {
     const user = localStorage.getItem('user');
     return user ? JSON.parse(user) : null;

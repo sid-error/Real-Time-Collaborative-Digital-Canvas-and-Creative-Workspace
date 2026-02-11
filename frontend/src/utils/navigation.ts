@@ -46,7 +46,7 @@
  * @see {@link https://developer.mozilla.org/en-US/docs/Web/API/Window/open} for more details
  * @see {@link https://owasp.org/www-community/attacks/Reverse_Tabnabbing} for tabnabbing security concerns
  */
-export const openInNewTab = (url: string, options = {}) => {
+export const openInNewTab = (url: string) => {
   window.open(url, '_blank', 'noopener,noreferrer');
 };
 
@@ -93,7 +93,7 @@ export const openInNewTab = (url: string, options = {}) => {
  * Note: This uses `window.scrollTo(0, 0)` which works in most browsers.
  * For smoother animations, consider using `window.scroll({ top: 0, behavior: 'smooth' })`
  */
-export const navigateToTop = (navigate: Function, path: string) => {
+export const navigateToTop = (navigate: (path: string) => void, path: string) => {
   navigate(path);
   window.scrollTo(0, 0);
 };

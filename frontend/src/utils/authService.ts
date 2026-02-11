@@ -14,8 +14,8 @@ import api from '../api/axios';
  * 
  * @async
  * @function registerUser
- * @param {any} userData - User registration data including email, password, username, etc.
- * @returns {Promise<any>} Response data from the registration API
+ * @param {unknown} userData - User registration data including email, password, username, etc.
+ * @returns {Promise<unknown>} Response data from the registration API
  * 
  * @example
  * ```typescript
@@ -23,14 +23,14 @@ import api from '../api/axios';
  *   email: 'user@example.com',
  *   password: 'securepassword123',
  *   username: 'artist123'
- * });
+ * }) as any;
  * 
  * if (result.success) {
  *   console.log('Registration successful');
  * }
  * ```
  */
-export const registerUser = async (userData: any) => {
+export const registerUser = async (userData: unknown): Promise<unknown> => {
   const response = await api.post('/auth/register', userData);
   return response.data;
 };
@@ -40,24 +40,24 @@ export const registerUser = async (userData: any) => {
  * 
  * @async
  * @function loginWithEmailPassword
- * @param {any} credentials - Login credentials containing email and password
- * @param {any} activityData - Additional activity tracking data (device info, location, etc.)
- * @returns {Promise<any>} Response data containing authentication token and user info
+ * @param {unknown} credentials - Login credentials containing email and password
+ * @param {unknown} activityData - Additional activity tracking data (device info, location, etc.)
+ * @returns {Promise<unknown>} Response data containing authentication token and user info
  * 
  * @example
  * ```typescript
  * const result = await loginWithEmailPassword(
  *   { email: 'user@example.com', password: 'password123' },
  *   { deviceType: 'Desktop', location: 'New York' }
- * );
+ * ) as any;
  * 
  * if (result.success) {
  *   localStorage.setItem('auth_token', result.token);
  * }
  * ```
  */
-export const loginWithEmailPassword = async (credentials: any, activityData: any) => {
-  const response = await api.post('/auth/login', { ...credentials, activityData });
+export const loginWithEmailPassword = async (credentials: unknown, activityData: unknown): Promise<unknown> => {
+  const response = await api.post('/auth/login', { ...credentials as object, activityData });
   return response.data;
 };
 
@@ -67,11 +67,11 @@ export const loginWithEmailPassword = async (credentials: any, activityData: any
  * @async
  * @function checkUsernameAvailability
  * @param {string} username - Username to check for availability
- * @returns {Promise<any>} Response indicating if username is available
+ * @returns {Promise<unknown>} Response indicating if username is available
  * 
  * @example
  * ```typescript
- * const result = await checkUsernameAvailability('artist123');
+ * const result = await checkUsernameAvailability('artist123') as any;
  * if (result.available) {
  *   console.log('Username is available');
  * } else {
@@ -79,7 +79,7 @@ export const loginWithEmailPassword = async (credentials: any, activityData: any
  * }
  * ```
  */
-export const checkUsernameAvailability = async (username: string) => {
+export const checkUsernameAvailability = async (username: string): Promise<unknown> => {
   const response = await api.get(`/auth/check-username/${username}`);
   return response.data;
 };
@@ -93,7 +93,7 @@ export const checkUsernameAvailability = async (username: string) => {
  * @param {string} [profileData.displayName] - New display name
  * @param {string} [profileData.bio] - New biography/description
  * @param {string | null} [profileData.avatar] - New avatar URL or null to remove
- * @returns {Promise<any>} Response indicating success or failure
+ * @returns {Promise<unknown>} Response indicating success or failure
  * 
  * @example
  * ```typescript
@@ -101,21 +101,22 @@ export const checkUsernameAvailability = async (username: string) => {
  *   displayName: 'New Display Name',
  *   bio: 'Artist and designer',
  *   avatar: 'https://example.com/avatar.jpg'
- * });
+ * }) as any;
  * ```
  */
 export const updateProfile = async (profileData: { 
   displayName?: string; 
   bio?: string; 
   avatar?: string | null;
-}) => {
+}): Promise<unknown> => {
   try {
     const response = await api.put('/auth/update-profile', profileData);
     return response.data;
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } } };
     return { 
       success: false, 
-      message: error.response?.data?.message || "Update failed" 
+      message: err.response?.data?.message || "Update failed" 
     };
   }
 };
@@ -126,22 +127,23 @@ export const updateProfile = async (profileData: {
  * @async
  * @function verifyEmailToken
  * @param {string} token - Email verification token sent to user's email
- * @returns {Promise<any>} Response indicating verification success or failure
+ * @returns {Promise<unknown>} Response indicating verification success or failure
  * 
  * @example
  * ```typescript
- * const result = await verifyEmailToken('verification-token-12345');
+ * const result = await verifyEmailToken('verification-token-12345') as any;
  * if (result.success) {
  *   console.log('Email verified successfully');
  * }
  * ```
  */
-export const verifyEmailToken = async (token: string) => {
+export const verifyEmailToken = async (token: string): Promise<unknown> => {
   try {
     const response = await api.post('/auth/verify-email', { token });
     return response.data;
-  } catch (error: any) {
-    return error.response?.data || { success: false, message: "Verification failed" };
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } } };
+    return err.response?.data || { success: false, message: "Verification failed" };
   }
 };
 
@@ -170,24 +172,25 @@ export const getDeviceType = (): string => {
  * @async
  * @function forgotPassword
  * @param {string} email - User's email address to send reset instructions
- * @returns {Promise<any>} Response indicating if reset email was sent
+ * @returns {Promise<unknown>} Response indicating if reset email was sent
  * 
  * @example
  * ```typescript
- * const result = await forgotPassword('user@example.com');
+ * const result = await forgotPassword('user@example.com') as any;
  * if (result.success) {
  *   console.log('Reset email sent successfully');
  * }
  * ```
  */
-export const forgotPassword = async (email: string) => {
+export const forgotPassword = async (email: string): Promise<unknown> => {
   try {
     const response = await api.post('/auth/forgot-password', { email });
     return response.data;
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } } };
     return {
       success: false,
-      message: error.response?.data?.message || 'Failed to send reset email. Please try again.',
+      message: err.response?.data?.message || 'Failed to send reset email. Please try again.',
     };
   }
 };
@@ -199,24 +202,25 @@ export const forgotPassword = async (email: string) => {
  * @function resetPassword
  * @param {string} token - Password reset token from email
  * @param {string} password - New password to set
- * @returns {Promise<any>} Response indicating if password was reset successfully
+ * @returns {Promise<unknown>} Response indicating if password was reset successfully
  * 
  * @example
  * ```typescript
- * const result = await resetPassword('reset-token-123', 'newSecurePassword456');
+ * const result = await resetPassword('reset-token-123', 'newSecurePassword456') as any;
  * if (result.success) {
  *   console.log('Password reset successful');
  * }
  * ```
  */
-export const resetPassword = async (token: string, password: string) => {
+export const resetPassword = async (token: string, password: string): Promise<unknown> => {
   try {
     const response = await api.post('/auth/reset-password', { token, password });
     return response.data;
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } } };
     return {
       success: false,
-      message: error.response?.data?.message || 'Failed to reset password. Please try again.',
+      message: err.response?.data?.message || 'Failed to reset password. Please try again.',
     };
   }
 };
@@ -227,24 +231,25 @@ export const resetPassword = async (token: string, password: string) => {
  * @async
  * @function searchUsers
  * @param {string} query - Search query string
- * @returns {Promise<any>} Response containing search results
+ * @returns {Promise<unknown>} Response containing search results
  * 
  * @example
  * ```typescript
- * const result = await searchUsers('john');
+ * const result = await searchUsers('john') as any;
  * if (result.success) {
  *   console.log('Found users:', result.users);
  * }
  * ```
  */
-export const searchUsers = async (query: string) => {
+export const searchUsers = async (query: string): Promise<unknown> => {
   try {
     const response = await api.get(`/auth/search?q=${encodeURIComponent(query)}`);
     return response.data;
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } } };
     return {
       success: false,
-      message: error.response?.data?.message || 'Search failed',
+      message: err.response?.data?.message || 'Search failed',
       users: []
     };
   }
@@ -257,24 +262,25 @@ export const searchUsers = async (query: string) => {
  * @function inviteUsersToRoom
  * @param {string} roomId - ID of the room to invite users to
  * @param {string[]} userIds - Array of user IDs to invite
- * @returns {Promise<any>} Response indicating invitation results
+ * @returns {Promise<unknown>} Response indicating invitation results
  * 
  * @example
  * ```typescript
- * const result = await inviteUsersToRoom('room-123', ['user-456', 'user-789']);
+ * const result = await inviteUsersToRoom('room-123', ['user-456', 'user-789']) as any;
  * if (result.success) {
  *   console.log(`Invites sent: ${result.results.sent}`);
  * }
  * ```
  */
-export const inviteUsersToRoom = async (roomId: string, userIds: string[]) => {
+export const inviteUsersToRoom = async (roomId: string, userIds: string[]): Promise<unknown> => {
   try {
     const response = await api.post(`/rooms/${roomId}/invite`, { userIds });
     return response.data;
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } } };
     return {
       success: false,
-      message: error.response?.data?.message || 'Failed to send invites',
+      message: err.response?.data?.message || 'Failed to send invites',
       results: { sent: 0, skipped: 0, errors: [] }
     };
   }
@@ -296,19 +302,20 @@ export const inviteUsersToRoom = async (roomId: string, userIds: string[]) => {
  *   // Create download link
  *   const url = URL.createObjectURL(imageBlob);
  *   // Trigger download
- * } catch (error) {
+ * } catch (error: any) {
  *   console.error('Export failed:', error.message);
  * }
  * ```
  */
-export const exportDrawing = async (roomId: string, format: 'png' | 'jpeg' = 'png') => {
+export const exportDrawing = async (roomId: string, format: 'png' | 'jpeg' = 'png'): Promise<Blob> => {
   try {
     const response = await api.get(`/rooms/${roomId}/export?format=${format}`, {
       responseType: 'blob'
     });
     return response.data;
-  } catch (error: any) {
-    throw new Error(error.response?.data?.message || 'Failed to export drawing');
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } } };
+    throw new Error(err.response?.data?.message || 'Failed to export drawing');
   }
 };
 

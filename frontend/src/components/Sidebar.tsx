@@ -84,13 +84,11 @@ export const Sidebar = () => {
       >
         {/* Application logo/brand section */}
         <div className="flex items-center gap-2 px-2 mb-8">
-          <div
-            className="bg-blue-600 p-2 rounded-lg text-white"
-            role="img"
-            aria-label="CollabCanvas logo"
-          >
-            <PlusCircle size={24} aria-hidden="true" />
-          </div>
+          <img 
+            src="/logo.png" 
+            alt="CollabCanvas logo" 
+            className="w-10 h-10 object-contain"
+          />
           <span className="font-bold text-xl tracking-tight text-slate-800 dark:text-white">
             CollabCanvas
           </span>

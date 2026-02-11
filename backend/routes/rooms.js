@@ -17,6 +17,7 @@ const {
   validateRoom,
   inviteUsers,
   exportDrawing,
+  getParticipants,
 } = require("../controllers/roomController");
 // Import the authentication middleware to secure room-specific routes
 const auth = require("../middleware/authh");
@@ -65,6 +66,14 @@ router.get("/my-rooms", auth, asyncHandler(getMyRooms));
  */
 // Endpoint to check access permissions before opening the canvas
 router.get("/:id/validate", auth, asyncHandler(validateRoom));
+
+/**
+ * @route   GET /api/rooms/:id/participants
+ * @desc    Get the list of participants in a room.
+ * @access  Private
+ */
+// Endpoint to fetch participants for a specific room
+router.get("/:id/participants", auth, asyncHandler(getParticipants));
 
 /**
  * @route   GET /api/rooms/:id/export

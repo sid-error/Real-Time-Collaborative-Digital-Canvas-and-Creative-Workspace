@@ -1,12 +1,15 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { vi, describe, test, expect, beforeEach } from 'vitest';
 import ParticipantsPanel from '../../../features/rooms/ParticipantsPanel';
 import roomService from '../../../services/roomService';
 
 // Mock roomService
-jest.mock('../../services/roomService', () => ({
-  getParticipants: jest.fn(),
-  manageParticipant: jest.fn(),
+vi.mock('../../../services/roomService', () => ({
+  default: {
+    getParticipants: vi.fn(),
+    manageParticipant: vi.fn(),
+  }
 }));
 
 const mockParticipants = [
@@ -32,11 +35,11 @@ const mockParticipants = [
 
 describe('ParticipantsPanel', () => {
   beforeEach(() => {
-    (roomService.getParticipants as jest.Mock).mockResolvedValue({
+    vi.mocked(roomService.getParticipants).mockResolvedValue({
       success: true,
       participants: mockParticipants,
     });
-    (roomService.manageParticipant as jest.Mock).mockResolvedValue({
+    vi.mocked(roomService.manageParticipant).mockResolvedValue({
       success: true,
     });
   });
@@ -48,7 +51,7 @@ describe('ParticipantsPanel', () => {
         currentUserId="u1"
         currentUserRole="owner"
         isOpen={true}
-        onClose={jest.fn()}
+        onClose={vi.fn()}
       />
     );
 
@@ -65,7 +68,7 @@ describe('ParticipantsPanel', () => {
         currentUserId="u1"
         currentUserRole="owner"
         isOpen={true}
-        onClose={jest.fn()}
+        onClose={vi.fn()}
       />
     );
 
@@ -85,7 +88,7 @@ describe('ParticipantsPanel', () => {
         currentUserId="u1"
         currentUserRole="owner"
         isOpen={true}
-        onClose={jest.fn()}
+        onClose={vi.fn()}
       />
     );
 
@@ -103,7 +106,7 @@ describe('ParticipantsPanel', () => {
         currentUserId="u1"
         currentUserRole="owner"
         isOpen={true}
-        onClose={jest.fn()}
+        onClose={vi.fn()}
       />
     );
 
@@ -130,7 +133,7 @@ describe('ParticipantsPanel', () => {
         currentUserId="u1"
         currentUserRole="owner"
         isOpen={true}
-        onClose={jest.fn()}
+        onClose={vi.fn()}
       />
     );
 
@@ -156,7 +159,7 @@ describe('ParticipantsPanel', () => {
   });
 
   test('calls onClose when close button is clicked', () => {
-    const handleClose = jest.fn();
+    const handleClose = vi.fn();
 
     render(
       <ParticipantsPanel

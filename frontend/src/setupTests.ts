@@ -2,6 +2,9 @@ import '@testing-library/jest-dom';
 import { TextEncoder, TextDecoder } from 'util';
 import { vi } from 'vitest';
 
+// Polyfill jest global for compatibility
+global.jest = vi;
+
 // Mock ResizeObserver
 global.ResizeObserver = vi.fn().mockImplementation(() => ({
   observe: vi.fn(),

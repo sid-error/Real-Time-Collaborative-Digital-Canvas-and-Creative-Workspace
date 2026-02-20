@@ -1,6 +1,7 @@
 // src/__tests__/pages/RegisterPage.test.tsx
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { vi, describe, test, expect, beforeEach } from 'vitest';
 import RegisterPage from '../../pages/RegisterPage';
 import { registerUser } from '../../utils/authService';
 import { validateEmailFormat } from '../../utils/emailValidation';
@@ -9,8 +10,8 @@ import { useNavigate } from 'react-router-dom';
 
 // ================== MOCKS ==================
 
-jest.mock('react-router-dom', () => {
-  const actual = jest.requireActual('react-router-dom');
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual('react-router-dom');
   return {
     ...actual,
     Link: ({ to, children, ...rest }: any) => (
@@ -18,25 +19,25 @@ jest.mock('react-router-dom', () => {
         {children}
       </a>
     ),
-    useNavigate: jest.fn(),
+    useNavigate: vi.fn(),
   };
 });
 
-jest.mock('../../components/ui/Button', () => ({
-  Button: ({ children, disabled, isLoading, ...rest }: any) => (
+vi.mock('../../components/ui/Button', () => ({
+  Button: ({ children, disabled, isLoading, variant, ...rest }: any) => (
     <button disabled={disabled} data-loading={isLoading ? 'true' : 'false'} {...rest}>
       {children}
     </button>
   ),
 }));
 
-jest.mock('../../components/ui/PasswordStrengthMeter', () => ({
+vi.mock('../../components/ui/PasswordStrengthMeter', () => ({
   PasswordStrengthMeter: ({ password }: any) => (
     <div data-testid="password-meter">Strength for: {password}</div>
   ),
 }));
 
-jest.mock('../../components/ui/UsernameChecker', () => ({
+vi.mock('../../components/ui/UsernameChecker', () => ({
   UsernameChecker: ({ username, onAvailabilityChange }: any) => (
     <div data-testid="username-checker">
       <div>Username: {username}</div>
@@ -46,31 +47,31 @@ jest.mock('../../components/ui/UsernameChecker', () => ({
   ),
 }));
 
-jest.mock('../../utils/authService', () => ({
-  registerUser: jest.fn(),
+vi.mock('../../utils/authService', () => ({
+  registerUser: vi.fn(),
 }));
 
-jest.mock('../../utils/emailValidation', () => ({
-  validateEmailFormat: jest.fn(),
+vi.mock('../../utils/emailValidation', () => ({
+  validateEmailFormat: vi.fn(),
 }));
 
-jest.mock('../../utils/navigation', () => ({
-  openInNewTab: jest.fn(),
+vi.mock('../../utils/navigation', () => ({
+  openInNewTab: vi.fn(),
 }));
 
 // ================== TESTS ==================
 
 describe('RegisterPage', () => {
-  const navigateMock = jest.fn();
+  const navigateMock = vi.fn();
 
   beforeEach(() => {
-    jest.clearAllMocks();
-    (useNavigate as jest.Mock).mockReturnValue(navigateMock);
+    vi.clearAllMocks();
+    (useNavigate as any).mockReturnValue(navigateMock);
 
-    jest.spyOn(window, 'alert').mockImplementation(() => {});
+    vi.spyOn(window, 'alert').mockImplementation(() => {});
 
     // Default: valid email
-    (validateEmailFormat as jest.Mock).mockImplementation((email: string) => ({
+    vi.mocked(validateEmailFormat).mockImplementation((email: string) => ({
       valid: email.includes('@'),
       message: email.includes('@') ? '' : 'Invalid email format',
     }));
@@ -104,7 +105,7 @@ describe('RegisterPage', () => {
   });
 
   test('email validation: invalid email shows error message and aria-invalid=true', () => {
-    (validateEmailFormat as jest.Mock).mockReturnValueOnce({
+    vi.mocked(validateEmailFormat).mockReturnValueOnce({
       valid: false,
       message: 'Invalid email format',
     });
@@ -144,7 +145,7 @@ describe('RegisterPage', () => {
   });
 
   test('submit: invalid email shows alert', async () => {
-    (validateEmailFormat as jest.Mock).mockReturnValue({
+    vi.mocked(validateEmailFormat).mockReturnValue({
       valid: false,
       message: 'Email invalid',
     });
@@ -202,7 +203,7 @@ describe('RegisterPage', () => {
   });
 
   test('successful registration: calls registerUser with normalized data and navigates', async () => {
-    (registerUser as jest.Mock).mockResolvedValueOnce({ success: true });
+    vi.mocked(registerUser).mockResolvedValueOnce({ success: true });
 
     render(<RegisterPage />);
 
@@ -236,7 +237,7 @@ describe('RegisterPage', () => {
   });
 
   test('failed registration: shows alert with backend message', async () => {
-    (registerUser as jest.Mock).mockResolvedValueOnce({
+    vi.mocked(registerUser).mockResolvedValueOnce({
       success: false,
       message: 'Username already exists',
     });
@@ -261,7 +262,7 @@ describe('RegisterPage', () => {
   });
 
   test('thrown error registration: shows fallback alert message', async () => {
-    (registerUser as jest.Mock).mockRejectedValueOnce(new Error('Network error'));
+    vi.mocked(registerUser).mockRejectedValueOnce(new Error('Network error'));
 
     render(<RegisterPage />);
 
@@ -285,7 +286,7 @@ describe('RegisterPage', () => {
   });
 
   test('submit button disabled when terms not checked / username not available / email invalid', () => {
-    (validateEmailFormat as jest.Mock).mockReturnValue({
+    vi.mocked(validateEmailFormat).mockReturnValue({
       valid: false,
       message: 'Bad email',
     });
@@ -298,7 +299,7 @@ describe('RegisterPage', () => {
     expect(submit).toBeDisabled();
 
     // Make email valid
-    (validateEmailFormat as jest.Mock).mockReturnValue({
+    vi.mocked(validateEmailFormat).mockReturnValue({
       valid: true,
       message: '',
     });

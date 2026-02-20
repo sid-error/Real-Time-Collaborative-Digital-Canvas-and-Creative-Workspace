@@ -1,47 +1,51 @@
 import React from 'react';
 import { render, screen, waitFor, act } from '@testing-library/react';
+import { vi, describe, test, expect, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom';
 import EmailVerificationPage from '../../pages/EmailVerificationPage';
 
 // MOCK: react-router-dom hooks
-const mockNavigate = jest.fn();
+const mockNavigate = vi.fn();
 
 let mockSearchParamsToken: string | null = null;
 let mockPathToken: string | undefined = undefined;
 
-jest.mock('react-router-dom', () => ({
-  ...jest.requireActual('react-router-dom'),
-  useNavigate: () => mockNavigate,
-  useParams: () => ({ token: mockPathToken }),
-  useSearchParams: () => [
-    {
-      get: (key: string) => {
-        if (key === 'token') return mockSearchParamsToken;
-        return null;
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual('react-router-dom');
+  return {
+    ...actual,
+    useNavigate: () => mockNavigate,
+    useParams: () => ({ token: mockPathToken }),
+    useSearchParams: () => [
+      {
+        get: (key: string) => {
+          if (key === 'token') return mockSearchParamsToken;
+          return null;
+        }
       }
-    }
-  ]
-}));
+    ]
+  };
+});
 
 // MOCK: API
-const mockVerifyEmailToken = jest.fn();
+const mockVerifyEmailToken = vi.fn();
 
-jest.mock('../../utils/authService', () => ({
+vi.mock('../../utils/authService', () => ({
   verifyEmailToken: (token: string) => mockVerifyEmailToken(token)
 }));
 
 describe('EmailVerificationPage', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
-    jest.useFakeTimers();
+    vi.clearAllMocks();
+    vi.useFakeTimers();
 
     mockSearchParamsToken = null;
     mockPathToken = undefined;
   });
 
   afterEach(() => {
-    jest.runOnlyPendingTimers();
-    jest.useRealTimers();
+    vi.runOnlyPendingTimers();
+    vi.useRealTimers();
   });
 
   test('shows loading state initially', async () => {
@@ -133,7 +137,7 @@ describe('EmailVerificationPage', () => {
 
     // Advance timers by 3 seconds
     await act(async () => {
-      jest.advanceTimersByTime(3000);
+      vi.advanceTimersByTime(3000);
     });
 
     expect(mockNavigate).toHaveBeenCalledWith('/login');

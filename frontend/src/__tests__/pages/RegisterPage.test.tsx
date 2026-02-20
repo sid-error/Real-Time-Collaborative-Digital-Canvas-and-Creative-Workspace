@@ -1,7 +1,6 @@
-// src/__tests__/pages/RegisterPage.test.tsx
-import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { vi, describe, test, expect, beforeEach } from 'vitest';
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
+import { vi, describe, it, expect, beforeEach } from "vitest";
 import RegisterPage from '../../pages/RegisterPage';
 import { registerUser } from '../../utils/authService';
 import { validateEmailFormat } from '../../utils/emailValidation';
@@ -68,7 +67,7 @@ describe('RegisterPage', () => {
     vi.clearAllMocks();
     (useNavigate as any).mockReturnValue(navigateMock);
 
-    vi.spyOn(window, 'alert').mockImplementation(() => {});
+    vi.spyOn(window, 'alert').mockImplementation(() => { });
 
     // Default: valid email
     vi.mocked(validateEmailFormat).mockImplementation((email: string) => ({
@@ -77,8 +76,12 @@ describe('RegisterPage', () => {
     }));
   });
 
-  test('renders all main inputs and submit button', () => {
-    render(<RegisterPage />);
+  it('renders all main inputs and submit button', () => {
+    render(
+      <MemoryRouter>
+        <RegisterPage />
+      </MemoryRouter>
+    );
 
     expect(screen.getByLabelText(/Full name/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/Username/i)).toBeInTheDocument();
@@ -90,27 +93,39 @@ describe('RegisterPage', () => {
     expect(screen.getByTestId('password-meter')).toBeInTheDocument();
   });
 
-  test('clicking Terms of Service opens in new tab', () => {
-    render(<RegisterPage />);
+  it('clicking Terms of Service opens in new tab', () => {
+    render(
+      <MemoryRouter>
+        <RegisterPage />
+      </MemoryRouter>
+    );
 
     fireEvent.click(screen.getByRole('button', { name: /Open Terms of Service/i }));
     expect(openInNewTab).toHaveBeenCalledWith('/terms-of-service');
   });
 
-  test('clicking Privacy Policy opens in new tab', () => {
-    render(<RegisterPage />);
+  it('clicking Privacy Policy opens in new tab', () => {
+    render(
+      <MemoryRouter>
+        <RegisterPage />
+      </MemoryRouter>
+    );
 
     fireEvent.click(screen.getByRole('button', { name: /Open Privacy Policy/i }));
     expect(openInNewTab).toHaveBeenCalledWith('/privacy-policy');
   });
 
-  test('email validation: invalid email shows error message and aria-invalid=true', () => {
+  it('email validation: invalid email shows error message and aria-invalid=true', () => {
     vi.mocked(validateEmailFormat).mockReturnValueOnce({
       valid: false,
       message: 'Invalid email format',
     });
 
-    render(<RegisterPage />);
+    render(
+      <MemoryRouter>
+        <RegisterPage />
+      </MemoryRouter>
+    );
 
     const emailInput = screen.getByLabelText(/Email address/i);
 
@@ -120,8 +135,12 @@ describe('RegisterPage', () => {
     expect(emailInput).toHaveAttribute('aria-invalid', 'true');
   });
 
-  test('submit: missing fields shows alert and does not call registerUser', async () => {
-    render(<RegisterPage />);
+  it('submit: missing fields shows alert and does not call registerUser', async () => {
+    render(
+      <MemoryRouter>
+        <RegisterPage />
+      </MemoryRouter>
+    );
 
     fireEvent.click(screen.getByRole('button', { name: /Sign Up/i }));
 
@@ -129,8 +148,12 @@ describe('RegisterPage', () => {
     expect(registerUser).not.toHaveBeenCalled();
   });
 
-  test('submit: username not available shows alert', async () => {
-    render(<RegisterPage />);
+  it('submit: username not available shows alert', async () => {
+    render(
+      <MemoryRouter>
+        <RegisterPage />
+      </MemoryRouter>
+    );
 
     fireEvent.change(screen.getByLabelText(/Full name/i), { target: { value: 'John Doe' } });
     fireEvent.change(screen.getByLabelText(/Username/i), { target: { value: 'john' } });
@@ -144,13 +167,17 @@ describe('RegisterPage', () => {
     expect(registerUser).not.toHaveBeenCalled();
   });
 
-  test('submit: invalid email shows alert', async () => {
+  it('submit: invalid email shows alert', async () => {
     vi.mocked(validateEmailFormat).mockReturnValue({
       valid: false,
       message: 'Email invalid',
     });
 
-    render(<RegisterPage />);
+    render(
+      <MemoryRouter>
+        <RegisterPage />
+      </MemoryRouter>
+    );
 
     fireEvent.change(screen.getByLabelText(/Full name/i), { target: { value: 'John Doe' } });
     fireEvent.change(screen.getByLabelText(/Username/i), { target: { value: 'john' } });
@@ -165,8 +192,12 @@ describe('RegisterPage', () => {
     expect(registerUser).not.toHaveBeenCalled();
   });
 
-  test('submit: not agreeing to terms shows alert', async () => {
-    render(<RegisterPage />);
+  it('submit: not agreeing to terms shows alert', async () => {
+    render(
+      <MemoryRouter>
+        <RegisterPage />
+      </MemoryRouter>
+    );
 
     fireEvent.change(screen.getByLabelText(/Full name/i), { target: { value: 'John Doe' } });
     fireEvent.change(screen.getByLabelText(/Username/i), { target: { value: 'john' } });
@@ -184,8 +215,12 @@ describe('RegisterPage', () => {
     expect(registerUser).not.toHaveBeenCalled();
   });
 
-  test('submit: password too short shows alert', async () => {
-    render(<RegisterPage />);
+  it('submit: password too short shows alert', async () => {
+    render(
+      <MemoryRouter>
+        <RegisterPage />
+      </MemoryRouter>
+    );
 
     fireEvent.change(screen.getByLabelText(/Full name/i), { target: { value: 'John Doe' } });
     fireEvent.change(screen.getByLabelText(/Username/i), { target: { value: 'john' } });
@@ -202,10 +237,14 @@ describe('RegisterPage', () => {
     expect(registerUser).not.toHaveBeenCalled();
   });
 
-  test('successful registration: calls registerUser with normalized data and navigates', async () => {
-    vi.mocked(registerUser).mockResolvedValueOnce({ success: true });
+  it('successful registration: calls registerUser with normalized data and navigates', async () => {
+    vi.mocked(registerUser).mockResolvedValueOnce({ success: true, message: 'Registration successful' });
 
-    render(<RegisterPage />);
+    render(
+      <MemoryRouter>
+        <RegisterPage />
+      </MemoryRouter>
+    );
 
     fireEvent.change(screen.getByLabelText(/Full name/i), { target: { value: 'John Doe' } });
     fireEvent.change(screen.getByLabelText(/Username/i), { target: { value: 'JohnUser' } });
@@ -236,7 +275,7 @@ describe('RegisterPage', () => {
     });
   });
 
-  test('failed registration: shows alert with backend message', async () => {
+  it('failed registration: shows alert with backend message', async () => {
     vi.mocked(registerUser).mockResolvedValueOnce({
       success: false,
       message: 'Username already exists',
@@ -261,7 +300,7 @@ describe('RegisterPage', () => {
     expect(window.alert).toHaveBeenCalledWith('Username already exists');
   });
 
-  test('thrown error registration: shows fallback alert message', async () => {
+  it('thrown error registration: shows fallback alert message', async () => {
     vi.mocked(registerUser).mockRejectedValueOnce(new Error('Network error'));
 
     render(<RegisterPage />);
@@ -285,7 +324,7 @@ describe('RegisterPage', () => {
     );
   });
 
-  test('submit button disabled when terms not checked / username not available / email invalid', () => {
+  it('submit button disabled when terms not checked / username not available / email invalid', () => {
     vi.mocked(validateEmailFormat).mockReturnValue({
       valid: false,
       message: 'Bad email',

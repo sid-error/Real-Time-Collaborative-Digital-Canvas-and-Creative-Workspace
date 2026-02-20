@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen, waitFor, act } from '@testing-library/react';
-import { vi, describe, test, expect, beforeEach, afterEach } from 'vitest';
-import '@testing-library/jest-dom';
+import { MemoryRouter } from 'react-router-dom';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import EmailVerificationPage from '../../pages/EmailVerificationPage';
 
 // MOCK: react-router-dom hooks
@@ -48,22 +48,30 @@ describe('EmailVerificationPage', () => {
     vi.useRealTimers();
   });
 
-  test('shows loading state initially', async () => {
+  it('shows loading state initially', async () => {
     mockSearchParamsToken = 'abc123';
     mockVerifyEmailToken.mockImplementation(
-      () => new Promise(() => {}) // never resolves
+      () => new Promise(() => { }) // never resolves
     );
 
-    render(<EmailVerificationPage />);
+    render(
+      <MemoryRouter>
+        <EmailVerificationPage />
+      </MemoryRouter>
+    );
 
     expect(screen.getByText(/Verifying Your Account/i)).toBeInTheDocument();
   });
 
-  test('fails immediately if no token exists', async () => {
+  it('fails immediately if no token exists', async () => {
     mockSearchParamsToken = null;
     mockPathToken = undefined;
 
-    render(<EmailVerificationPage />);
+    render(
+      <MemoryRouter>
+        <EmailVerificationPage />
+      </MemoryRouter>
+    );
 
     expect(await screen.findByText(/Activation Failed/i)).toBeInTheDocument();
     expect(
@@ -73,7 +81,7 @@ describe('EmailVerificationPage', () => {
     expect(mockVerifyEmailToken).not.toHaveBeenCalled();
   });
 
-  test('uses query token (?token=) over path token', async () => {
+  it('uses query token (?token=) over path token', async () => {
     mockSearchParamsToken = 'queryToken';
     mockPathToken = 'pathToken';
 
@@ -82,14 +90,18 @@ describe('EmailVerificationPage', () => {
       message: 'Invalid token'
     });
 
-    render(<EmailVerificationPage />);
+    render(
+      <MemoryRouter>
+        <EmailVerificationPage />
+      </MemoryRouter>
+    );
 
     await waitFor(() => {
       expect(mockVerifyEmailToken).toHaveBeenCalledWith('queryToken');
     });
   });
 
-  test('uses path token if query token is missing', async () => {
+  it('uses path token if query token is missing', async () => {
     mockSearchParamsToken = null;
     mockPathToken = 'pathTokenOnly';
 
@@ -98,14 +110,18 @@ describe('EmailVerificationPage', () => {
       message: 'Invalid token'
     });
 
-    render(<EmailVerificationPage />);
+    render(
+      <MemoryRouter>
+        <EmailVerificationPage />
+      </MemoryRouter>
+    );
 
     await waitFor(() => {
       expect(mockVerifyEmailToken).toHaveBeenCalledWith('pathTokenOnly');
     });
   });
 
-  test('shows success UI when API returns success=true', async () => {
+  it('shows success UI when API returns success=true', async () => {
     mockSearchParamsToken = 'abc123';
 
     mockVerifyEmailToken.mockResolvedValue({
@@ -113,13 +129,17 @@ describe('EmailVerificationPage', () => {
       message: 'Email verified successfully!'
     });
 
-    render(<EmailVerificationPage />);
+    render(
+      <MemoryRouter>
+        <EmailVerificationPage />
+      </MemoryRouter>
+    );
 
     expect(await screen.findByText(/Success!/i)).toBeInTheDocument();
     expect(screen.getByText(/Email verified successfully!/i)).toBeInTheDocument();
   });
 
-  test('redirects to /login after 3 seconds on success', async () => {
+  it('redirects to /login after 3 seconds on success', async () => {
     mockSearchParamsToken = 'abc123';
 
     mockVerifyEmailToken.mockResolvedValue({
@@ -127,7 +147,11 @@ describe('EmailVerificationPage', () => {
       message: 'Verified'
     });
 
-    render(<EmailVerificationPage />);
+    render(
+      <MemoryRouter>
+        <EmailVerificationPage />
+      </MemoryRouter>
+    );
 
     // Wait until success state appears
     expect(await screen.findByText(/Success!/i)).toBeInTheDocument();
@@ -143,7 +167,7 @@ describe('EmailVerificationPage', () => {
     expect(mockNavigate).toHaveBeenCalledWith('/login');
   });
 
-  test('shows failed UI when API returns success=false with message', async () => {
+  it('shows failed UI when API returns success=false with message', async () => {
     mockSearchParamsToken = 'badtoken';
 
     mockVerifyEmailToken.mockResolvedValue({
@@ -151,31 +175,43 @@ describe('EmailVerificationPage', () => {
       message: 'Token expired'
     });
 
-    render(<EmailVerificationPage />);
+    render(
+      <MemoryRouter>
+        <EmailVerificationPage />
+      </MemoryRouter>
+    );
 
     expect(await screen.findByText(/Activation Failed/i)).toBeInTheDocument();
     expect(screen.getByText(/Token expired/i)).toBeInTheDocument();
   });
 
-  test('shows default failed message when API returns success=false without message', async () => {
+  it('shows default failed message when API returns success=false without message', async () => {
     mockSearchParamsToken = 'badtoken';
 
     mockVerifyEmailToken.mockResolvedValue({
       success: false
     });
 
-    render(<EmailVerificationPage />);
+    render(
+      <MemoryRouter>
+        <EmailVerificationPage />
+      </MemoryRouter>
+    );
 
     expect(await screen.findByText(/Activation Failed/i)).toBeInTheDocument();
     expect(screen.getByText(/Verification failed\./i)).toBeInTheDocument();
   });
 
-  test('shows connection error when verifyEmailToken throws', async () => {
+  it('shows connection error when verifyEmailToken throws', async () => {
     mockSearchParamsToken = 'abc123';
 
     mockVerifyEmailToken.mockRejectedValue(new Error('Network error'));
 
-    render(<EmailVerificationPage />);
+    render(
+      <MemoryRouter>
+        <EmailVerificationPage />
+      </MemoryRouter>
+    );
 
     expect(await screen.findByText(/Activation Failed/i)).toBeInTheDocument();
     expect(
@@ -183,7 +219,7 @@ describe('EmailVerificationPage', () => {
     ).toBeInTheDocument();
   });
 
-  test('prevents double API calls (StrictMode protection via useRef)', async () => {
+  it('prevents double API calls (StrictMode protection via useRef)', async () => {
     mockSearchParamsToken = 'abc123';
 
     mockVerifyEmailToken.mockResolvedValue({

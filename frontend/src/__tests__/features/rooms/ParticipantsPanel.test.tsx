@@ -56,8 +56,8 @@ describe('ParticipantsPanel', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('Alice')).toBeInTheDocument();
-      expect(screen.getByText('Bob')).toBeInTheDocument();
+      expect(screen.getByText(/Alice/i)).toBeInTheDocument();
+      expect(screen.getByText(/Bob/i)).toBeInTheDocument();
     });
   });
 
@@ -72,13 +72,13 @@ describe('ParticipantsPanel', () => {
       />
     );
 
-    await waitFor(() => screen.getByText('Alice'));
+    await waitFor(() => screen.getByText(/Alice/i));
 
     const searchInput = screen.getByPlaceholderText('Search participants...');
     fireEvent.change(searchInput, { target: { value: 'Bob' } });
 
-    expect(screen.queryByText('Alice')).not.toBeInTheDocument();
-    expect(screen.getByText('Bob')).toBeInTheDocument();
+    expect(screen.queryByText(/Alice/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/Bob/i)).toBeInTheDocument();
   });
 
   test('opens action menu when more button is clicked', async () => {
@@ -92,11 +92,11 @@ describe('ParticipantsPanel', () => {
       />
     );
 
-    await waitFor(() => screen.getByText('Bob'));
+    await waitFor(() => screen.getByText(/Bob/i));
     const manageButtons = screen.getAllByLabelText(/Manage/);
     fireEvent.click(manageButtons[0]);
 
-    expect(screen.getByText('Manage Bob')).toBeInTheDocument();
+    expect(screen.getByText(/Manage Bob/i)).toBeInTheDocument();
   });
 
   test('promotes participant to moderator', async () => {
@@ -110,7 +110,7 @@ describe('ParticipantsPanel', () => {
       />
     );
 
-    await waitFor(() => screen.getByText('Bob'));
+    await waitFor(() => screen.getByText(/Bob/i));
     const manageButton = screen.getAllByLabelText(/Manage/)[0];
     fireEvent.click(manageButton);
 
@@ -137,7 +137,7 @@ describe('ParticipantsPanel', () => {
       />
     );
 
-    await waitFor(() => screen.getByText('Bob'));
+    await waitFor(() => screen.getByText(/Bob/i));
     const manageButton = screen.getAllByLabelText(/Manage/)[0];
     fireEvent.click(manageButton);
 

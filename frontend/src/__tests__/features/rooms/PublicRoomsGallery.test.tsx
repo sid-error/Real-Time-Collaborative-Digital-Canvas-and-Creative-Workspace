@@ -6,9 +6,12 @@ import roomService from '../../../services/roomService';
 import { BrowserRouter } from 'react-router-dom';
 
 // Mock roomService
-vi.mock('../../services/roomService', () => ({
+vi.mock('../../../services/roomService', () => ({
   default: {
     getPublicRooms: vi.fn(),
+    joinRoom: vi.fn(),
+    leaveRoom: vi.fn(),
+    createRoom: vi.fn(),
   }
 }));
 
@@ -44,6 +47,7 @@ const mockRooms = [
 
 describe('PublicRoomsGallery', () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     vi.mocked(roomService.getPublicRooms).mockResolvedValue({
       success: true,
       rooms: mockRooms as any,
@@ -101,9 +105,9 @@ describe('PublicRoomsGallery', () => {
     );
 
     await waitFor(() => screen.getByText('Test Room 1'));
-    // Finding join button for public room
-    const joinBtns = screen.getAllByText('Join Room');
-    fireEvent.click(joinBtns[0]);
+    // Finding join button - actually we want to click the card to trigger handleRoomClick
+    const card = screen.getByRole('article', { name: /Room: Test Room 1/i });
+    fireEvent.click(card);
 
     expect(onJoinRoom).toHaveBeenCalledWith('r1');
   });
@@ -117,9 +121,9 @@ describe('PublicRoomsGallery', () => {
     );
 
     await waitFor(() => screen.getByText('Private Room'));
-    // Finding join button for private room (second in mock list)
-    const joinBtns = screen.getAllByText('Join Room');
-    fireEvent.click(joinBtns[1]);
+    // Finding join button - actually click the card
+    const card = screen.getByRole('article', { name: /Room: Private Room/i });
+    fireEvent.click(card);
 
     expect(window.prompt).toHaveBeenCalledWith(
       'This room requires a password. Please enter the password:'
@@ -168,17 +172,29 @@ describe('PublicRoomsGallery', () => {
   });
 
   test('load more button calls handleLoadMore', async () => {
+    // Mock 20 rooms to make hasMore true
+    const manyRooms = Array.from({ length: 20 }, (_, i) => ({
+      ...mockRooms[0],
+      id: `room-${i}`,
+      name: `Room ${i}`,
+    }));
+
+    vi.mocked(roomService.getPublicRooms).mockResolvedValueOnce({
+      success: true,
+      rooms: manyRooms as any,
+    });
+
     renderWithRouter(
       <PublicRoomsGallery isOpen={true} onClose={vi.fn()} onJoinRoom={vi.fn()} />
     );
 
-    await waitFor(() => screen.getByText('Test Room 1'));
+    await waitFor(() => screen.getByText('Room 0'));
 
     const loadMoreButton = screen.getByLabelText('Load more rooms');
     fireEvent.click(loadMoreButton);
 
     await waitFor(() => {
-      expect(roomService.getPublicRooms).toHaveBeenCalled();
+      expect(roomService.getPublicRooms).toHaveBeenCalledTimes(2); // Initial + load more
     });
   });
 });

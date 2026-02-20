@@ -3,7 +3,7 @@
 import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
-import { vi, describe, test, expect, beforeEach, afterEach } from "vitest";
+import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
 import ResetPasswordPage from "../../pages/ResetPasswordPage";
 import { resetPassword } from "../../utils/authService";
 
@@ -58,7 +58,7 @@ describe("ResetPasswordPage", () => {
     vi.useRealTimers();
   });
 
-  test("renders reset form UI", () => {
+  it("renders reset form UI", () => {
     renderPage("abc123");
 
     expect(
@@ -72,7 +72,7 @@ describe("ResetPasswordPage", () => {
     ).toBeInTheDocument();
   });
 
-  test("shows error if no token is present", async () => {
+  it("shows error if no token is present", async () => {
     renderPage(null);
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
@@ -83,7 +83,7 @@ describe("ResetPasswordPage", () => {
     expect(submitBtn).toBeDisabled();
   });
 
-  test("toggles password visibility when clicking show/hide button", () => {
+  it("toggles password visibility when clicking show/hide button", () => {
     renderPage("abc123");
 
     const passwordInput = screen.getByLabelText(/^New Password$/i);
@@ -98,7 +98,7 @@ describe("ResetPasswordPage", () => {
     expect(passwordInput).toHaveAttribute("type", "password");
   });
 
-  test("shows validation error when password is less than 8 chars", async () => {
+  it("shows validation error when password is less than 8 chars", async () => {
     renderPage("abc123");
 
     fireEvent.change(screen.getByLabelText(/^New Password$/i), {
@@ -118,7 +118,7 @@ describe("ResetPasswordPage", () => {
     expect(resetPassword).not.toHaveBeenCalled();
   });
 
-  test("shows validation error when passwords do not match", async () => {
+  it("shows validation error when passwords do not match", async () => {
     renderPage("abc123");
 
     fireEvent.change(screen.getByLabelText(/^New Password$/i), {
@@ -138,7 +138,7 @@ describe("ResetPasswordPage", () => {
     expect(resetPassword).not.toHaveBeenCalled();
   });
 
-  test("calls resetPassword API with token and password on valid submit", async () => {
+  it("calls resetPassword API with token and password on valid submit", async () => {
     vi.mocked(resetPassword).mockResolvedValueOnce({ success: true, message: "Success" });
 
     renderPage("abc123");
@@ -158,7 +158,7 @@ describe("ResetPasswordPage", () => {
     });
   });
 
-  test("shows success screen when resetPassword returns success", async () => {
+  it("shows success screen when resetPassword returns success", async () => {
     vi.mocked(resetPassword).mockResolvedValueOnce({ success: true, message: "Success" });
 
     renderPage("abc123");
@@ -182,7 +182,7 @@ describe("ResetPasswordPage", () => {
     ).toBeInTheDocument();
   });
 
-  test("navigates to /login after 3 seconds on success", async () => {
+  it("navigates to /login after 3 seconds on success", async () => {
     vi.mocked(resetPassword).mockResolvedValueOnce({ success: true, message: "Success" });
 
     renderPage("abc123");
@@ -206,7 +206,7 @@ describe("ResetPasswordPage", () => {
     expect(mockNavigate).toHaveBeenCalledWith("/login");
   });
 
-  test("shows API error message when resetPassword returns success=false", async () => {
+  it("shows API error message when resetPassword returns success=false", async () => {
     vi.mocked(resetPassword).mockResolvedValueOnce({
       success: false,
       message: "Invalid token",
@@ -227,7 +227,7 @@ describe("ResetPasswordPage", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(/invalid token/i);
   });
 
-  test("shows fallback error message when resetPassword throws", async () => {
+  it("shows fallback error message when resetPassword throws", async () => {
     vi.mocked(resetPassword).mockRejectedValueOnce(new Error("Network error"));
 
     renderPage("abc123");

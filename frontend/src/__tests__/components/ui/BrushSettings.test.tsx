@@ -93,9 +93,9 @@ describe("BrushSettings", () => {
 
     const slider = screen.getByRole("slider");
     // Range inputs trigger change/input events. React's onChange usually covers both.
-    fireEvent.change(slider, { target: { value: "12" } });
+    fireEvent.change(slider, { target: { value: "8" } });
 
-    expect(defaultProps.onStrokeWidthChange).toHaveBeenCalledWith(12);
+    expect(defaultProps.onStrokeWidthChange).toHaveBeenCalledWith(8);
   });
 
   test("calls onStrokeWidthChange when preset button clicked", () => {

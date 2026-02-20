@@ -10,6 +10,8 @@ import ImageUploader from '../../components/ui/ImageUploader';
 import { useSelection } from '../../hooks/useSelection';
 import { useClipboard } from '../../hooks/useClipboard';
 import { ContextMenu } from '../../components/ui/ContextMenu';
+import { useLayers } from '../../hooks/useLayers';
+import { LayerPanel } from '../../components/ui/LayerPanel';
 import {
   Square, Circle, Edit2, Trash2, Grid, Minus, Plus,
   Eraser, MinusCircle, PlusCircle, Zap, ZapOff, Download, RotateCcw, RotateCw,
@@ -363,6 +365,25 @@ export const CollaborativeCanvas = ({ roomId, onSocketReady }: CollaborativeCanv
     })
   );
 
+  const {
+    layerState,
+    createLayer,
+    deleteLayer,
+    duplicateLayer,
+    toggleLayerVisibility,
+    toggleLayerLock,
+    setActiveLayer,
+    renameLayer,
+    setLayerOpacity,
+    setLayerBlendMode,
+    reorderLayers,
+    mergeLayerDown,
+    getLayerElements,
+    isLayerEditable,
+    updateLayerElementCounts,
+    setLayerState
+  } = useLayers(elements, setElements);
+
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   /**
  * Handle context menu (right-click)
@@ -542,6 +563,7 @@ export const CollaborativeCanvas = ({ roomId, onSocketReady }: CollaborativeCanv
     dpr: number
   ): void => {
     elementsToDraw.forEach((el) => {
+      ctx.save();
       ctx.beginPath();
       ctx.strokeStyle = el.color;
       ctx.lineWidth = el.strokeWidth;
@@ -563,11 +585,16 @@ export const CollaborativeCanvas = ({ roomId, onSocketReady }: CollaborativeCanv
       switch (el.type) {
         case "pencil":
         case "eraser":
+          if (el.type === "eraser") {
+            ctx.globalCompositeOperation = 'destination-out';
+            ctx.strokeStyle = "rgba(0,0,0,1)";
+          }
           if (el.points && el.points.length > 1) {
             ctx.moveTo(el.points[0].x / dpr, el.points[0].y / dpr);
             for (let i = 1; i < el.points.length; i++) {
               ctx.lineTo(el.points[i].x / dpr, el.points[i].y / dpr);
             }
+            ctx.stroke();
           }
           break;
 
@@ -594,9 +621,9 @@ export const CollaborativeCanvas = ({ roomId, onSocketReady }: CollaborativeCanv
             el.width !== undefined &&
             el.height !== undefined
           ) {
-            const radius =
-              Math.sqrt(Math.pow(el.width, 2) + Math.pow(el.height, 2)) / dpr;
+            const radius = Math.sqrt(el.width ** 2 + el.height ** 2) / dpr;
             ctx.arc(el.x / dpr, el.y / dpr, Math.abs(radius), 0, 2 * Math.PI);
+            ctx.stroke();
           }
           break;
 
@@ -604,7 +631,6 @@ export const CollaborativeCanvas = ({ roomId, onSocketReady }: CollaborativeCanv
         case "arrow":
           if (el.points && el.points.length === 2) {
             const [start, end] = el.points;
-            ctx.beginPath();
             ctx.moveTo(start.x / dpr, start.y / dpr);
             ctx.lineTo(end.x / dpr, end.y / dpr);
             ctx.stroke();
@@ -615,9 +641,45 @@ export const CollaborativeCanvas = ({ roomId, onSocketReady }: CollaborativeCanv
             }
           }
           break;
-      }
 
-      ctx.stroke();
+        case "text": {
+          const textEl = el as TextElement;
+          ctx.font = `${textEl.format.fontStyle} ${textEl.format.fontWeight} ${textEl.format.fontSize}px ${textEl.format.fontFamily}`;
+          ctx.fillStyle = textEl.format.color;
+          ctx.textAlign = textEl.format.textAlign;
+          ctx.textBaseline = "top";
+
+          const lines = textEl.text.split("\n");
+          const x = textEl.x! / dpr;
+          const y = textEl.y! / dpr;
+
+          lines.forEach((line, index) => {
+            ctx.fillText(
+              line,
+              x,
+              y + index * textEl.format.fontSize * 1.2
+            );
+          });
+          break;
+        }
+
+        case "image": {
+          const imageEl = el as ImageElement;
+          const img = new Image();
+          img.src = imageEl.src;
+          if (img.complete) {
+            ctx.drawImage(
+              img,
+              imageEl.x! / dpr,
+              imageEl.y! / dpr,
+              imageEl.width / dpr,
+              imageEl.height / dpr
+            );
+          }
+          break;
+        }
+      }
+      ctx.restore();
     });
   }, []);
 
@@ -634,53 +696,67 @@ export const CollaborativeCanvas = ({ roomId, onSocketReady }: CollaborativeCanv
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // Clear entire canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Draw grid background
     drawGrid(ctx, canvas.width, canvas.height);
 
-    // Apply transformations for elements
     ctx.save();
     const dpr = window.devicePixelRatio || 1;
+
     ctx.scale(1 / dpr, 1 / dpr);
     ctx.translate(panOffset.x * zoomLevel * dpr, panOffset.y * zoomLevel * dpr);
     ctx.scale(zoomLevel, zoomLevel);
 
-    // Enable anti-aliasing for smoother edges
     if (brushConfig.antiAliasing) {
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = "high";
     }
 
-    // Draw all saved elements
-    elements.forEach((el) => {
+    // ================================
+    // LAYER-AWARE RENDERING
+    // ================================
+
+    const sortedLayers = [...layerState.layers].sort(
+      (a, b) => a.index - b.index
+    );
+
+    const drawSingleElement = (el: DrawingElement, layerOpacity: number = 1) => {
+      ctx.save();
+
       ctx.beginPath();
       ctx.strokeStyle = el.color;
       ctx.lineWidth = el.strokeWidth;
       ctx.lineCap = el.strokeStyle?.lineCap || "round";
       ctx.lineJoin = el.strokeStyle?.lineJoin || "round";
-      ctx.globalAlpha = el.opacity || 1;
 
-      // Apply dash pattern from strokeStyle
-      if (el.strokeStyle?.dashArray && el.strokeStyle.dashArray.length > 0) {
+      // Combine element + layer opacity
+      ctx.globalAlpha = (el.opacity ?? 1) * layerOpacity;
+
+      // Dash styles
+      if (el.strokeStyle?.dashArray?.length) {
         ctx.setLineDash(el.strokeStyle.dashArray);
-      } else if (el.strokeStyle?.type === 'dashed') {
+      } else if (el.strokeStyle?.type === "dashed") {
         ctx.setLineDash([5, 5]);
-      } else if (el.strokeStyle?.type === 'dotted') {
+      } else if (el.strokeStyle?.type === "dotted") {
         ctx.setLineDash([1, 3]);
       } else {
         ctx.setLineDash([]);
       }
 
-      // Handle different element types
       switch (el.type) {
         case "pencil":
+        case "eraser":
+          if (el.type === "eraser") {
+            ctx.globalCompositeOperation = 'destination-out';
+            ctx.strokeStyle = "rgba(0,0,0,1)";
+          }
+
           if (el.points && el.points.length > 1) {
             ctx.moveTo(el.points[0].x / dpr, el.points[0].y / dpr);
             for (let i = 1; i < el.points.length; i++) {
               ctx.lineTo(el.points[i].x / dpr, el.points[i].y / dpr);
             }
+            ctx.stroke();
           }
           break;
 
@@ -695,7 +771,7 @@ export const CollaborativeCanvas = ({ roomId, onSocketReady }: CollaborativeCanv
               el.x / dpr,
               el.y / dpr,
               el.width / dpr,
-              el.height / dpr,
+              el.height / dpr
             );
           }
           break;
@@ -707,75 +783,59 @@ export const CollaborativeCanvas = ({ roomId, onSocketReady }: CollaborativeCanv
             el.width !== undefined &&
             el.height !== undefined
           ) {
-            const radius =
-              Math.sqrt(Math.pow(el.width, 2) + Math.pow(el.height, 2)) / dpr;
-            ctx.arc(el.x / dpr, el.y / dpr, Math.abs(radius), 0, 2 * Math.PI);
+            const radius = Math.sqrt(el.width ** 2 + el.height ** 2) / dpr;
+            ctx.arc(
+              el.x / dpr,
+              el.y / dpr,
+              Math.abs(radius),
+              0,
+              2 * Math.PI
+            );
+            ctx.stroke();
           }
           break;
 
-        case 'eraser':
-          // Eraser is implemented as a white pencil stroke
-          ctx.strokeStyle = '#ffffff';
-          if (el.points && el.points.length > 1) {
-            ctx.moveTo(el.points[0].x / dpr, el.points[0].y / dpr);
-            for (let i = 1; i < el.points.length; i++) {
-              ctx.lineTo(el.points[i].x / dpr, el.points[i].y / dpr);
+        case "line":
+        case "arrow":
+          if (el.points && el.points.length === 2) {
+            const [start, end] = el.points;
+            ctx.moveTo(start.x / dpr, start.y / dpr);
+            ctx.lineTo(end.x / dpr, end.y / dpr);
+            ctx.stroke();
+
+            if (el.type === 'arrow') {
+              drawArrowhead(ctx, start, end, el.strokeWidth * 3, dpr);
             }
           }
           break;
 
-        case "text":
-          if (el.type === 'text') {
-            const textEl = el as TextElement;
-            ctx.save();
+        case "text": {
+          const textEl = el as TextElement;
+          ctx.font = `${textEl.format.fontStyle} ${textEl.format.fontWeight} ${textEl.format.fontSize}px ${textEl.format.fontFamily}`;
+          ctx.fillStyle = textEl.format.color;
+          ctx.textAlign = textEl.format.textAlign;
+          ctx.textBaseline = "top";
 
-            // Set text properties
-            ctx.font = `${textEl.format.fontStyle} ${textEl.format.fontWeight} ${textEl.format.fontSize}px ${textEl.format.fontFamily}`;
-            ctx.fillStyle = textEl.format.color;
-            ctx.textAlign = textEl.format.textAlign;
-            ctx.textBaseline = 'top';
+          const lines = textEl.text.split("\n");
+          const x = textEl.x! / dpr;
+          const y = textEl.y! / dpr;
 
-            // Calculate x position based on alignment
-            const x = textEl.x! / dpr;
-            if (textEl.format.textAlign === 'center') {
-              // For center alignment, we'd need text width - simplified for now
-            } else if (textEl.format.textAlign === 'right') {
-              // For right alignment, we'd need text width - simplified for now
-            }
-
-            // Draw text with decoration
-            const lines = textEl.text.split('\n');
-            const y = textEl.y! / dpr;
-
-            lines.forEach((line, index) => {
-              ctx.fillText(line, x, y + (index * textEl.format.fontSize * 1.2));
-
-              // Draw underline if needed
-              if (textEl.format.textDecoration === 'underline') {
-                const metrics = ctx.measureText(line);
-                const lineY = y + (index * textEl.format.fontSize * 1.2) + 2;
-                ctx.beginPath();
-                ctx.strokeStyle = textEl.format.color;
-                ctx.lineWidth = 1;
-                ctx.moveTo(x, lineY);
-                ctx.lineTo(x + metrics.width, lineY);
-                ctx.stroke();
-              }
-            });
-
-            ctx.restore();
-          }
+          lines.forEach((line, index) => {
+            ctx.fillText(
+              line,
+              x,
+              y + index * textEl.format.fontSize * 1.2
+            );
+          });
           break;
+        }
 
-        case "image":
-          if (el.type === 'image') {
-            const imageEl = el as ImageElement;
+        case "image": {
+          const imageEl = el as ImageElement;
+          const img = new Image();
+          img.src = imageEl.src;
 
-            // Create or get cached image
-            const img = new Image();
-            img.src = imageEl.src;
-
-            // Draw image with proper positioning
+          if (img.complete) {
             ctx.drawImage(
               img,
               imageEl.x! / dpr,
@@ -783,115 +843,82 @@ export const CollaborativeCanvas = ({ roomId, onSocketReady }: CollaborativeCanv
               imageEl.width / dpr,
               imageEl.height / dpr
             );
-
-            // Draw resize handles if selected (to be implemented later)
-            if (selectedObjectId === imageEl.id) {
-              ctx.save();
-              ctx.strokeStyle = '#3b82f6';
-              ctx.lineWidth = 2 / zoomLevel;
-              ctx.setLineDash([5 / zoomLevel, 5 / zoomLevel]);
-              ctx.strokeRect(
-                imageEl.x! / dpr,
-                imageEl.y! / dpr,
-                imageEl.width / dpr,
-                imageEl.height / dpr
-              );
-
-              // Draw resize handles at corners
-              const handleSize = 8 / zoomLevel;
-              ctx.fillStyle = '#3b82f6';
-              ctx.setLineDash([]);
-
-              // Top-left
-              ctx.fillRect(
-                imageEl.x! / dpr - handleSize / 2,
-                imageEl.y! / dpr - handleSize / 2,
-                handleSize,
-                handleSize
-              );
-
-              // Top-right
-              ctx.fillRect(
-                (imageEl.x! + imageEl.width) / dpr - handleSize / 2,
-                imageEl.y! / dpr - handleSize / 2,
-                handleSize,
-                handleSize
-              );
-
-              // Bottom-left
-              ctx.fillRect(
-                imageEl.x! / dpr - handleSize / 2,
-                (imageEl.y! + imageEl.height) / dpr - handleSize / 2,
-                handleSize,
-                handleSize
-              );
-
-              // Bottom-right
-              ctx.fillRect(
-                (imageEl.x! + imageEl.width) / dpr - handleSize / 2,
-                (imageEl.y! + imageEl.height) / dpr - handleSize / 2,
-                handleSize,
-                handleSize
-              );
-
-              ctx.restore();
-            }
+          } else {
+            img.onload = () => redrawCanvas();
           }
           break;
+        }
       }
 
-      ctx.stroke();
-
-      // Draw lock indicator if object is locked
-      if (lockedObjects[el.id]) {
-        const lockInfo = lockedObjects[el.id];
+      // ================================
+      // SELECTION HIGHLIGHT
+      // ================================
+      if (selection.selectedIds.includes(el.id)) {
         ctx.save();
-        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.strokeStyle = "#3b82f6";
+        ctx.lineWidth = 2 / zoomLevel;
+        ctx.setLineDash([5 / zoomLevel, 5 / zoomLevel]);
 
-        // Get element bounds for lock badge placement
-        let bx = 0,
-          by = 0;
-        const bw = 20,
-          bh = 20;
-        if (el.type === "pencil" || el.type === "eraser") {
-          if (el.points && el.points.length > 0) {
-            bx = el.points[0].x / dpr - 15;
-            by = el.points[0].y / dpr - 15;
-          }
-        } else {
-          bx = (el.x || 0) / dpr - 15;
-          by = (el.y || 0) / dpr - 15;
+        if (
+          el.x !== undefined &&
+          el.y !== undefined &&
+          el.width !== undefined &&
+          el.height !== undefined
+        ) {
+          ctx.strokeRect(
+            el.x / dpr,
+            el.y / dpr,
+            el.width / dpr,
+            el.height / dpr
+          );
+        } else if (el.points && el.points.length > 0) {
+          let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+          el.points.forEach(p => {
+            minX = Math.min(minX, p.x);
+            minY = Math.min(minY, p.y);
+            maxX = Math.max(maxX, p.x);
+            maxY = Math.max(maxY, p.y);
+          });
+          ctx.strokeRect(
+            minX / dpr,
+            minY / dpr,
+            (maxX - minX) / dpr,
+            (maxY - minY) / dpr
+          );
         }
-
-        // Draw lock badge background with user color
-        ctx.fillStyle = lockInfo.color;
-        ctx.globalAlpha = 0.9;
-        ctx.fillRect(bx, by, bw, bh);
-        ctx.strokeStyle = "white";
-        ctx.lineWidth = 2;
-        ctx.strokeRect(bx, by, bw, bh);
-
-        // Draw lock icon (simple unicode lock 🔒)
-        ctx.fillStyle = "white";
-        ctx.font = "bold 12px Arial";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.globalAlpha = 1;
-        ctx.fillText("🔒", bx + bw / 2, by + bh / 2);
-
         ctx.restore();
       }
+
+      ctx.restore();
+    };
+
+    sortedLayers.forEach((layer) => {
+      if (!layer.visible) return;
+
+      const layerElements = elements.filter(
+        (el) => el.layerId === layer.id
+      );
+
+      layerElements.forEach((el) => {
+        drawSingleElement(el, layer.opacity);
+      });
     });
+
+    if (currentElement) {
+      drawSingleElement(currentElement, 1);
+    }
 
     ctx.restore();
   }, [
     elements,
-    canvasSize,
+    currentElement,
+    layerState.layers,
     zoomLevel,
     panOffset,
     drawGrid,
     brushConfig.antiAliasing,
-    lockedObjects,
+    selection.selectedIds
   ]);
 
   /**
@@ -1102,6 +1129,12 @@ export const CollaborativeCanvas = ({ roomId, onSocketReady }: CollaborativeCanv
   const startDrawing = useCallback((e: React.MouseEvent): void => {
     const point = getCanvasCoordinates(e.clientX, e.clientY);
 
+    // Check if active layer is editable
+    if (layerState.activeLayerId && !isLayerEditable(layerState.activeLayerId)) {
+      // Show some feedback that layer is locked
+      return;
+    }
+
     // Handle select tool
     if (tool === 'select') {
       handleSelectionStart(e, point);
@@ -1155,10 +1188,11 @@ export const CollaborativeCanvas = ({ roomId, onSocketReady }: CollaborativeCanv
       strokeWidth,
       opacity,
       strokeStyle: { ...strokeStyle },
+      points: (tool === 'line' || tool === 'arrow') ? [point, point] : undefined,
     };
 
     setCurrentElement(newElement);
-  }, [tool, color, strokeWidth, opacity, strokeStyle, getCanvasCoordinates, handleSelectionStart, findElementAtPoint, selection.selectedIds, startMove]);
+  }, [tool, color, strokeWidth, opacity, strokeStyle, getCanvasCoordinates, handleSelectionStart, findElementAtPoint, selection.selectedIds, startMove, layerState.activeLayerId, isLayerEditable]);
 
   /**
    * Update drawing while mouse moves
@@ -1223,7 +1257,7 @@ export const CollaborativeCanvas = ({ roomId, onSocketReady }: CollaborativeCanv
       };
 
       setCurrentElement(updatedElement);
-      redrawCurrentStroke(updatedElement);
+      redrawCanvas();
 
       // Emit real-time update to other users (throttled to 50ms)
       if (socketRef.current && resolvedRoomIdRef.current && currentTime - lastEmitTimeRef.current > 50) {
@@ -1242,6 +1276,9 @@ export const CollaborativeCanvas = ({ roomId, onSocketReady }: CollaborativeCanv
         ...currentElement,
         width: point.x - (currentElement.x || 0),
         height: point.y - (currentElement.y || 0),
+        points: (currentElement.type === 'line' || currentElement.type === 'arrow')
+          ? [{ x: currentElement.x!, y: currentElement.y! }, point]
+          : undefined,
       };
       setCurrentElement(updatedElement);
       redrawCanvas();
@@ -1250,81 +1287,6 @@ export const CollaborativeCanvas = ({ roomId, onSocketReady }: CollaborativeCanv
     lastPointRef.current = point;
     lastTimeRef.current = currentTime;
   }, [isDrawing, currentElement, tool, user, getCanvasCoordinates, transform, handleTransform, handleDragBox, dragBox]);
-
-  /**
-   * Stop drawing and finalize the element
-   * Adds completed element to the elements array and emits to server
-   */
-  const stopDrawing = (): void => {
-    if (!isDrawing || !currentElement) return;
-
-    setIsDrawing(false);
-
-    // Only add to elements if it's a valid drawing
-    if (tool === "pencil" || tool === "eraser") {
-      if (brushEngineRef.current?.hasPoints()) {
-        setElements((prev) => [...prev, currentElement]);
-        if (socketRef.current && resolvedRoomIdRef.current) {
-          socketRef.current.emit("drawing-update", {
-            roomId: resolvedRoomIdRef.current,
-            element: currentElement,
-            saveToDb: true,
-            userId: user.id || user._id,
-          });
-        }
-      }
-    }
-    else if (tool === "line" || tool === "arrow") {
-      // Check if line has length
-      if (currentElement.points && currentElement.points.length === 2) {
-        const [start, end] = currentElement.points;
-        const distance = Math.sqrt(
-          Math.pow(end.x - start.x, 2) + Math.pow(end.y - start.y, 2)
-        );
-        if (distance > 5) { // Minimum 5px length
-          setElements((prev) => [...prev, currentElement]);
-          if (socketRef.current && resolvedRoomIdRef.current) {
-            socketRef.current.emit("drawing-update", {
-              roomId: resolvedRoomIdRef.current,
-              element: currentElement,
-              saveToDb: true,
-              userId: user.id || user._id,
-            });
-          }
-        }
-      }
-    }
-    else {
-      // For shapes, check if they have valid dimensions
-      if (
-        Math.abs(currentElement.width || 0) > 1 ||
-        Math.abs(currentElement.height || 0) > 1
-      ) {
-        setElements((prev) => [...prev, currentElement]);
-        if (socketRef.current && resolvedRoomIdRef.current) {
-          socketRef.current.emit("drawing-update", {
-            roomId: resolvedRoomIdRef.current,
-            element: currentElement,
-            saveToDb: true,
-            userId: user.id || user._id,
-          });
-        }
-      }
-    }
-
-    // Emit object unlock event
-    if (socketRef.current && resolvedRoomIdRef.current && currentElement) {
-      socketRef.current.emit("unlock-object", {
-        roomId: resolvedRoomIdRef.current,
-        elementId: currentElement.id,
-      });
-    }
-
-    setCurrentElement(null);
-    if (brushEngineRef.current) {
-      brushEngineRef.current.clear();
-    }
-  };
 
   /**
    * Mouse Handle (up)
@@ -1391,85 +1353,36 @@ export const CollaborativeCanvas = ({ roomId, onSocketReady }: CollaborativeCanv
     }
 
     if (shouldSave) {
-      setElements((prev) => [...prev, currentElement]);
+      const elementWithLayer = {
+        ...currentElement,
+        layerId: currentElement.layerId ?? layerState.activeLayerId!
+      };
+
+      setElements((prev) => [...prev, elementWithLayer]);
 
       if (socketRef.current && resolvedRoomIdRef.current) {
         socketRef.current.emit("drawing-update", {
           roomId: resolvedRoomIdRef.current,
-          element: currentElement,
+          element: elementWithLayer,
           saveToDb: true,
           userId: user?.id || user?._id,
         });
       }
     }
 
+    // Unlock object if we were drawing one
+    if (socketRef.current && resolvedRoomIdRef.current) {
+      socketRef.current.emit("unlock-object", {
+        roomId: resolvedRoomIdRef.current,
+        elementId: currentElement.id,
+      });
+    }
+
     setCurrentElement(null);
     if (brushEngineRef.current) {
       brushEngineRef.current.clear();
     }
-  }, [tool, isDrawing, currentElement, setElements, user, dragBox, handleSelectionEnd, transform, endTransform, selection.selectedIds, elements, getCanvasCoordinates]);
-
-  /**
-   * Draw current stroke in real-time (for pencil/eraser tools)
-   * 
-   * @function redrawCurrentStroke
-   * @param {DrawingElement} element - Current drawing element to render
-   */
-  const redrawCurrentStroke = (element: DrawingElement): void => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    // Clear canvas
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Redraw all saved elements
-    redrawCanvas();
-
-    // Draw current stroke on top
-    if (
-      (element.type === "pencil" || element.type === "eraser") &&
-      element.points &&
-      element.points.length > 1
-    ) {
-      ctx.save();
-
-      // Apply transformations
-      const dpr = window.devicePixelRatio || 1;
-      ctx.scale(1 / dpr, 1 / dpr);
-      ctx.translate(
-        panOffset.x * zoomLevel * dpr,
-        panOffset.y * zoomLevel * dpr,
-      );
-      ctx.scale(zoomLevel, zoomLevel);
-
-      // Set drawing properties
-      ctx.strokeStyle = element.type === "eraser" ? "#ffffff" : element.color;
-      ctx.lineWidth = element.strokeWidth;
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
-      ctx.globalAlpha = element.opacity || 1;
-
-      // Enable anti-aliasing
-      if (brushConfig.antiAliasing) {
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = "high";
-      }
-
-      // Draw the stroke
-      ctx.beginPath();
-      ctx.moveTo(element.points[0].x / dpr, element.points[0].y / dpr);
-
-      for (let i = 1; i < element.points.length; i++) {
-        ctx.lineTo(element.points[i].x / dpr, element.points[i].y / dpr);
-      }
-
-      ctx.stroke();
-      ctx.restore();
-    }
-  };
+  }, [tool, isDrawing, currentElement, setElements, user, dragBox, handleSelectionEnd, transform, endTransform, selection.selectedIds, elements, getCanvasCoordinates, layerState.activeLayerId, socketRef, resolvedRoomIdRef]);
 
   /**
    * Export canvas as image
@@ -1948,6 +1861,25 @@ export const CollaborativeCanvas = ({ roomId, onSocketReady }: CollaborativeCanv
           </button>
         </div>
       </div>
+      {/* Layer Panel */}
+      <LayerPanel
+        layers={layerState.layers}
+        activeLayerId={layerState.activeLayerId}
+        isExpanded={layerState.isExpanded}
+        panelWidth={layerState.panelWidth}
+        onToggleExpand={() => setLayerState(prev => ({ ...prev, isExpanded: !prev.isExpanded }))}
+        onResize={(width) => setLayerState(prev => ({ ...prev, panelWidth: width }))}
+        onCreateLayer={() => createLayer()}
+        onDeleteLayer={deleteLayer}
+        onDuplicateLayer={duplicateLayer}
+        onToggleVisibility={toggleLayerVisibility}
+        onToggleLock={toggleLayerLock}
+        onSelectLayer={setActiveLayer}
+        onRenameLayer={renameLayer}
+        onMergeDown={mergeLayerDown}
+        onReorderLayers={reorderLayers}
+        totalElements={elements.length}
+      />
 
       {/* Selection toolbar - shown when objects are selected */}
       {selection.selectedIds.length > 0 && (
@@ -2032,8 +1964,17 @@ export const CollaborativeCanvas = ({ roomId, onSocketReady }: CollaborativeCanv
       <div className="absolute bottom-4 left-4 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm px-3 py-1.5 rounded-lg text-sm text-slate-600 dark:text-slate-400">
         {Math.round(canvasSize.width)} × {Math.round(canvasSize.height)} px
         {brushConfig.pressureSensitive && " • Pressure: On"}
-        {brushConfig.smoothing > 0 &&
-          ` • Smoothing: ${brushConfig.smoothing.toFixed(1)}`}
+        {brushConfig.smoothing > 0 && ` • Smoothing: ${brushConfig.smoothing.toFixed(1)}`}
+        {layerState.activeLayerId && (
+          <span className="ml-2 inline-flex items-center gap-1">
+            • Layer: {
+              layerState.layers.find(l => l.id === layerState.activeLayerId)?.name
+            }
+            {!isLayerEditable(layerState.activeLayerId) && (
+              <span className="text-xs text-amber-500">(locked)</span>
+            )}
+          </span>
+        )}
       </div>
 
       {/* Main drawing canvas */}

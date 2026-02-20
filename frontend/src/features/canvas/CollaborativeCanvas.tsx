@@ -12,8 +12,9 @@ import { useClipboard } from '../../hooks/useClipboard';
 import { ContextMenu } from '../../components/ui/ContextMenu';
 import { useLayers } from '../../hooks/useLayers';
 import { LayerPanel } from '../../components/ui/LayerPanel';
+import { useObjectLocks } from '../../hooks/useObjectLocks';
 import {
-  Square, Circle, Edit2, Trash2, Grid, Minus, Plus,
+  Square, Circle, Edit2, Trash2, Grid, Minus, Plus, X, Lock,
   Eraser, MinusCircle, PlusCircle, Zap, ZapOff, Download, RotateCcw, RotateCw,
   Type, Minus as LineIcon, ArrowRight, Image as ImageIcon, Move, Copy, Scissors,
   ArrowUp, ArrowDown, Trash, Clipboard
@@ -253,6 +254,8 @@ export const CollaborativeCanvas = ({ roomId, onSocketReady }: CollaborativeCanv
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
+  // Resolved room ID (canonical MongoDB _id returned by the backend socket)
+  const resolvedRoomIdRef = useRef<string | undefined>(roomId);
 
   // Text Input
   const [isEditingText, setIsEditingText] = useState<boolean>(false);
@@ -285,9 +288,6 @@ export const CollaborativeCanvas = ({ roomId, onSocketReady }: CollaborativeCanv
   const [tool, setTool] = useState<
     "pencil" | "rectangle" | "circle" | "line" | "arrow" | "text" | "eraser" | "select" | "image"
   >("pencil");
-  const [lockedObjects, setLockedObjects] = useState<
-    Record<string, { userId: string; username: string; color: string }>
-  >({});
 
   // Image Uploading State
   const [isUploadingImage, setIsUploadingImage] = useState<boolean>(false);
@@ -384,6 +384,22 @@ export const CollaborativeCanvas = ({ roomId, onSocketReady }: CollaborativeCanv
     setLayerState
   } = useLayers(elements, setElements);
 
+  const {
+    myLocks,
+    requestLock,
+    releaseLock,
+    isLocked,
+    isLockedByMe,
+    getLockInfo
+  } = useObjectLocks({
+    socket: socketRef.current,
+    roomId: resolvedRoomIdRef.current,
+    userId: user?.id || user?._id,
+    username: user?.username || user?.fullName,
+    userColor: color, // Use current brush color for visual distinction
+    lockTimeout: 30000 // 30 seconds
+  });
+
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   /**
  * Handle context menu (right-click)
@@ -397,8 +413,6 @@ export const CollaborativeCanvas = ({ roomId, onSocketReady }: CollaborativeCanv
     }
   }, [tool]);
 
-  // Resolved room ID (canonical MongoDB _id returned by the backend socket)
-  const resolvedRoomIdRef = useRef<string | undefined>(roomId);
 
   /**
    * Initialize WebSocket connection for real-time collaboration
@@ -1129,70 +1143,122 @@ export const CollaborativeCanvas = ({ roomId, onSocketReady }: CollaborativeCanv
   const startDrawing = useCallback((e: React.MouseEvent): void => {
     const point = getCanvasCoordinates(e.clientX, e.clientY);
 
-    // Check if active layer is editable
-    if (layerState.activeLayerId && !isLayerEditable(layerState.activeLayerId)) {
-      // Show some feedback that layer is locked
+    // ----------------------------------
+    // Validate active layer
+    // ----------------------------------
+    if (!layerState.activeLayerId) return;
+
+    if (!isLayerEditable(layerState.activeLayerId)) {
       return;
     }
 
-    // Handle select tool
-    if (tool === 'select') {
+    // ----------------------------------
+    // SELECT TOOL
+    // ----------------------------------
+    if (tool === "select") {
       handleSelectionStart(e, point);
 
-      // Check if we clicked on an element to start moving
       const element = findElementAtPoint(point);
-      if (element && selection.selectedIds.includes(element.id)) {
-        // Start move operation
-        startMove(e, point);
+
+      if (element) {
+        // Block interaction if locked by someone else
+        if (isLocked(element.id) && !isLockedByMe(element.id)) {
+          return;
+        }
+
+        // Request lock before modifying
+        requestLock(element.id);
+
+        if (selection.selectedIds.includes(element.id)) {
+          startMove(e, point);
+        }
       }
+
       return;
     }
 
-    // Handle text tool
-    if (tool === 'text') {
+    // ----------------------------------
+    // TEXT TOOL
+    // ----------------------------------
+    if (tool === "text") {
       setTextPosition(point);
       setIsEditingText(true);
       setEditingTextElement(null);
       return;
     }
 
-    // Handle image tool
-    if (tool === 'image') {
+    // ----------------------------------
+    // IMAGE TOOL
+    // ----------------------------------
+    if (tool === "image") {
       setImagePosition(point);
       setIsUploadingImage(true);
       return;
     }
 
+    // ----------------------------------
+    // DRAWING TOOLS
+    // ----------------------------------
+
     setIsDrawing(true);
     lastPointRef.current = point;
     lastTimeRef.current = Date.now();
 
-    const id = `${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+    const id = `${Date.now()}-${Math.random()
+      .toString(36)
+      .substr(2, 5)}`;
 
-    const newElement: DrawingElement = (tool === 'pencil' || tool === 'eraser') ? {
+    const baseElement = {
       id,
       type: tool,
-      points: [point],
-      color: tool === 'eraser' ? '#ffffff' : color,
+      color: tool === "eraser" ? "#ffffff" : color,
       strokeWidth,
       opacity,
       strokeStyle: { ...strokeStyle },
-    } : {
-      id,
-      type: tool,
-      x: point.x,
-      y: point.y,
-      width: 0,
-      height: 0,
-      color,
-      strokeWidth,
-      opacity,
-      strokeStyle: { ...strokeStyle },
-      points: (tool === 'line' || tool === 'arrow') ? [point, point] : undefined,
+      layerId: layerState.activeLayerId, // ✅ Assign layer HERE
     };
 
+    const newElement: DrawingElement =
+      tool === "pencil" || tool === "eraser"
+        ? {
+          ...baseElement,
+          points: [point],
+        }
+        : {
+          ...baseElement,
+          x: point.x,
+          y: point.y,
+          width: 0,
+          height: 0,
+          points:
+            tool === "line" || tool === "arrow"
+              ? [point, point]
+              : undefined,
+        };
+
+    // ----------------------------------
+    // Lock the element BEFORE editing
+    // ----------------------------------
+    requestLock(id);
+
     setCurrentElement(newElement);
-  }, [tool, color, strokeWidth, opacity, strokeStyle, getCanvasCoordinates, handleSelectionStart, findElementAtPoint, selection.selectedIds, startMove, layerState.activeLayerId, isLayerEditable]);
+  }, [
+    tool,
+    color,
+    strokeWidth,
+    opacity,
+    strokeStyle,
+    getCanvasCoordinates,
+    handleSelectionStart,
+    findElementAtPoint,
+    selection.selectedIds,
+    startMove,
+    layerState.activeLayerId,
+    isLayerEditable,
+    isLocked,
+    isLockedByMe,
+    requestLock,
+  ]);
 
   /**
    * Update drawing while mouse moves
@@ -1294,21 +1360,30 @@ export const CollaborativeCanvas = ({ roomId, onSocketReady }: CollaborativeCanv
   const handleMouseUp = useCallback((e: React.MouseEvent): void => {
     const point = getCanvasCoordinates(e.clientX, e.clientY);
 
-    // Handle selection end
-    if (tool === 'select') {
+    // ---------------------------------
+    // SELECT TOOL
+    // ---------------------------------
+    if (tool === "select") {
       if (dragBox) {
         handleSelectionEnd(point);
       }
+
       if (transform.isTransforming) {
         endTransform();
 
-        // Emit final position to server
-        if (socketRef.current && resolvedRoomIdRef.current && selection.selectedIds.length > 0) {
-          selection.selectedIds.forEach(id => {
-            const element = elements.find(el => el.id === id);
+        const socket = socketRef.current;
+        const resolvedRoomId = resolvedRoomIdRef.current;
+
+        if (
+          socket &&
+          resolvedRoomId &&
+          selection.selectedIds.length > 0
+        ) {
+          selection.selectedIds.forEach((id) => {
+            const element = elements.find((el) => el.id === id);
             if (element) {
-              socketRef.current?.emit("drawing-update", {
-                roomId: resolvedRoomIdRef.current,
+              socket.emit("drawing-update", {
+                roomId: resolvedRoomId,
                 element,
                 saveToDb: true,
                 userId: user?.id || user?._id,
@@ -1316,46 +1391,56 @@ export const CollaborativeCanvas = ({ roomId, onSocketReady }: CollaborativeCanv
             }
           });
         }
+
+        // 🔒 DO NOT release lock here
+        // Keep lock until deselect for better UX
       }
+
       return;
     }
 
-    // Handle drawing stop
+    // ---------------------------------
+    // DRAWING TOOLS
+    // ---------------------------------
+
     if (!isDrawing || !currentElement) return;
 
     setIsDrawing(false);
 
-    // Determine if element should be saved
     let shouldSave = false;
 
     switch (currentElement.type) {
-      case 'pencil':
-      case 'eraser':
-        shouldSave = brushEngineRef.current?.hasPoints() || false;
+      case "pencil":
+      case "eraser":
+        shouldSave = !!brushEngineRef.current?.hasPoints();
         break;
 
-      case 'line':
-      case 'arrow':
-        if (currentElement.points && currentElement.points.length === 2) {
+      case "line":
+      case "arrow":
+        if (currentElement.points?.length === 2) {
           const [start, end] = currentElement.points;
           const distance = Math.sqrt(
-            Math.pow(end.x - start.x, 2) + Math.pow(end.y - start.y, 2)
+            Math.pow(end.x - start.x, 2) +
+            Math.pow(end.y - start.y, 2)
           );
           shouldSave = distance > 5;
         }
         break;
 
-      case 'rectangle':
-      case 'circle':
-        shouldSave = Math.abs(currentElement.width || 0) > 5 &&
-          Math.abs(currentElement.height || 0) > 5;
+      case "rectangle":
+      case "circle":
+        shouldSave =
+          Math.abs(currentElement.width ?? 0) > 5 &&
+          Math.abs(currentElement.height ?? 0) > 5;
         break;
     }
 
     if (shouldSave) {
       const elementWithLayer = {
         ...currentElement,
-        layerId: currentElement.layerId ?? layerState.activeLayerId!
+        layerId:
+          currentElement.layerId ??
+          layerState.activeLayerId!,
       };
 
       setElements((prev) => [...prev, elementWithLayer]);
@@ -1370,7 +1455,10 @@ export const CollaborativeCanvas = ({ roomId, onSocketReady }: CollaborativeCanv
       }
     }
 
-    // Unlock object if we were drawing one
+    // ---------------------------------
+    // Always release lock after drawing
+    // ---------------------------------
+
     if (socketRef.current && resolvedRoomIdRef.current) {
       socketRef.current.emit("unlock-object", {
         roomId: resolvedRoomIdRef.current,
@@ -1379,10 +1467,24 @@ export const CollaborativeCanvas = ({ roomId, onSocketReady }: CollaborativeCanv
     }
 
     setCurrentElement(null);
-    if (brushEngineRef.current) {
-      brushEngineRef.current.clear();
-    }
-  }, [tool, isDrawing, currentElement, setElements, user, dragBox, handleSelectionEnd, transform, endTransform, selection.selectedIds, elements, getCanvasCoordinates, layerState.activeLayerId, socketRef, resolvedRoomIdRef]);
+    brushEngineRef.current?.clear();
+  }, [
+    tool,
+    isDrawing,
+    currentElement,
+    setElements,
+    user,
+    dragBox,
+    handleSelectionEnd,
+    transform.isTransforming,
+    endTransform,
+    selection.selectedIds,
+    elements,
+    getCanvasCoordinates,
+    layerState.activeLayerId,
+    socketRef,
+    resolvedRoomIdRef,
+  ]);
 
   /**
    * Export canvas as image
@@ -1437,6 +1539,16 @@ export const CollaborativeCanvas = ({ roomId, onSocketReady }: CollaborativeCanv
       setIsExporting(false);
     }
   };
+
+  const handleDeselect = useCallback(() => {
+    // Release locks on all selected elements
+    selection.selectedIds.forEach(id => {
+      if (isLockedByMe(id)) {
+        releaseLock(id);
+      }
+    });
+    clearSelection();
+  }, [selection.selectedIds, isLockedByMe, releaseLock, clearSelection]);
 
   /**
    * Handle zoom in operation
@@ -1882,83 +1994,141 @@ export const CollaborativeCanvas = ({ roomId, onSocketReady }: CollaborativeCanv
       />
 
       {/* Selection toolbar - shown when objects are selected */}
-      {selection.selectedIds.length > 0 && (
-        <div className="absolute top-24 left-1/2 -translate-x-1/2 bg-white dark:bg-slate-800 px-3 py-2 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 flex items-center gap-2 z-20">
-          {/* Copy button */}
-          <button
-            onClick={() => copyToClipboard()}
-            className="p-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
-            title="Copy (Ctrl+C)"
-          >
-            <Copy size={18} />
-          </button>
+      {selection.selectedIds.length > 0 && (() => {
+        const singleSelectedId =
+          selection.selectedIds.length === 1
+            ? selection.selectedIds[0]
+            : null;
 
-          {/* Cut button */}
-          <button
-            onClick={() => cutToClipboard()}
-            className="p-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
-            title="Cut (Ctrl+X)"
-          >
-            <Scissors size={18} />
-          </button>
+        const isLockedByOther =
+          singleSelectedId &&
+          isLocked(singleSelectedId) &&
+          !isLockedByMe(singleSelectedId);
 
-          {/* Paste button (if clipboard has content) */}
-          {hasClipboardContent() && (
+        return (
+          <div className="absolute top-24 left-1/2 -translate-x-1/2 bg-white dark:bg-slate-800 px-3 py-2 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 flex items-center gap-2 z-20">
+
+            {/* Lock indicator */}
+            {singleSelectedId && isLockedByOther && (
+              <div className="flex items-center gap-1 px-2 py-1 bg-amber-100 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 rounded-lg text-xs">
+                <Lock size={14} />
+                <span>
+                  Locked by {getLockInfo(singleSelectedId)?.username}
+                </span>
+              </div>
+            )}
+
+            {/* Copy */}
             <button
-              onClick={() => pasteFromClipboard(20, 20)}
-              className="p-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
-              title="Paste (Ctrl+V)"
+              onClick={copyToClipboard}
+              disabled={!!isLockedByOther}
+              className={`p-2 rounded-lg transition-colors ${isLockedByOther
+                ? "opacity-50 cursor-not-allowed"
+                : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700"
+                }`}
+              title="Copy (Ctrl+C)"
             >
-              <Clipboard size={18} />
+              <Copy size={18} />
             </button>
-          )}
 
-          <div className="w-px h-6 bg-slate-200 dark:bg-slate-700" />
+            {/* Cut */}
+            <button
+              onClick={cutToClipboard}
+              disabled={!!isLockedByOther}
+              className={`p-2 rounded-lg transition-colors ${isLockedByOther
+                ? "opacity-50 cursor-not-allowed"
+                : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700"
+                }`}
+              title="Cut (Ctrl+X)"
+            >
+              <Scissors size={18} />
+            </button>
 
-          {/* Duplicate button */}
-          <button
-            onClick={duplicateSelected}
-            className="p-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
-            title="Duplicate (Ctrl+D)"
-          >
-            <Copy size={18} />
-          </button>
+            {/* Paste */}
+            {hasClipboardContent() && (
+              <button
+                onClick={() => pasteFromClipboard(20, 20)}
+                className="p-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                title="Paste (Ctrl+V)"
+              >
+                <Clipboard size={18} />
+              </button>
+            )}
 
-          {/* Delete button */}
-          <button
-            onClick={deleteSelected}
-            className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-            title="Delete (Del)"
-          >
-            <Trash size={18} />
-          </button>
+            <div className="w-px h-6 bg-slate-200 dark:bg-slate-700" />
 
-          <div className="w-px h-6 bg-slate-200 dark:bg-slate-700" />
+            {/* Duplicate */}
+            <button
+              onClick={duplicateSelected}
+              disabled={!!isLockedByOther}
+              className={`p-2 rounded-lg transition-colors ${isLockedByOther
+                ? "opacity-50 cursor-not-allowed"
+                : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700"
+                }`}
+              title="Duplicate (Ctrl+D)"
+            >
+              <Copy size={18} />
+            </button>
 
-          {/* Layer controls */}
-          <button
-            onClick={bringToFront}
-            className="p-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
-            title="Bring to Front"
-          >
-            <ArrowUp size={18} />
-          </button>
-          <button
-            onClick={sendToBack}
-            className="p-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
-            title="Send to Back"
-          >
-            <ArrowDown size={18} />
-          </button>
+            {/* Delete */}
+            <button
+              onClick={deleteSelected}
+              disabled={!!isLockedByOther}
+              className={`p-2 rounded-lg transition-colors ${isLockedByOther
+                ? "opacity-50 cursor-not-allowed"
+                : "text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+                }`}
+              title="Delete (Del)"
+            >
+              <Trash size={18} />
+            </button>
 
-          <div className="w-px h-6 bg-slate-200 dark:bg-slate-700" />
+            <div className="w-px h-6 bg-slate-200 dark:bg-slate-700" />
 
-          {/* Selection count */}
-          <span className="text-sm text-slate-600 dark:text-slate-400 px-2">
-            {selection.selectedIds.length} {selection.selectedIds.length === 1 ? 'object' : 'objects'} selected
-          </span>
-        </div>
-      )}
+            {/* Layer order */}
+            <button
+              onClick={bringToFront}
+              disabled={!!isLockedByOther}
+              className={`p-2 rounded-lg transition-colors ${isLockedByOther
+                ? "opacity-50 cursor-not-allowed"
+                : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700"
+                }`}
+              title="Bring to Front"
+            >
+              <ArrowUp size={18} />
+            </button>
+
+            <button
+              onClick={sendToBack}
+              disabled={!!isLockedByOther}
+              className={`p-2 rounded-lg transition-colors ${isLockedByOther
+                ? "opacity-50 cursor-not-allowed"
+                : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700"
+                }`}
+              title="Send to Back"
+            >
+              <ArrowDown size={18} />
+            </button>
+
+            <div className="w-px h-6 bg-slate-200 dark:bg-slate-700" />
+
+            {/* Selection count */}
+            <span className="text-sm text-slate-600 dark:text-slate-400 px-2">
+              {selection.selectedIds.length}{" "}
+              {selection.selectedIds.length === 1 ? "object" : "objects"} selected
+            </span>
+
+            {/* Deselect */}
+            <button
+              onClick={handleDeselect}
+              className="p-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+              title="Deselect (Esc)"
+            >
+              <X size={18} />
+            </button>
+          </div>
+        );
+      })()}
 
       {/* Canvas info overlay */}
       <div className="absolute bottom-4 left-4 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm px-3 py-1.5 rounded-lg text-sm text-slate-600 dark:text-slate-400">

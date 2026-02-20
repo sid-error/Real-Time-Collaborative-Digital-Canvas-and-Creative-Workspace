@@ -1,24 +1,25 @@
 import React from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { vi, describe, test, expect, beforeEach } from "vitest";
 import "@testing-library/jest-dom";
 import LoginPage from "../../pages/LoginPage";
 
 /* -------------------- MOCKS -------------------- */
 
 // mock navigate
-const mockNavigate = jest.fn();
+const mockNavigate = vi.fn();
 
 // mock AuthContext
-const mockLogin = jest.fn();
+const mockLogin = vi.fn();
 
 // mock authService
-const mockLoginWithEmailPassword = jest.fn();
-const mockGetDeviceType = jest.fn();
+const mockLoginWithEmailPassword = vi.fn();
+const mockGetDeviceType = vi.fn();
 
 // react-router mocks
-jest.mock("react-router-dom", () => {
-  const actual = jest.requireActual("react-router-dom");
+vi.mock("react-router-dom", async () => {
+  const actual = await vi.importActual("react-router-dom");
   return {
     ...actual,
     useNavigate: () => mockNavigate,
@@ -29,14 +30,14 @@ jest.mock("react-router-dom", () => {
 });
 
 // AuthContext mock
-jest.mock("../../services/AuthContext", () => ({
+vi.mock("../../services/AuthContext", () => ({
   useAuth: () => ({
     login: mockLogin,
   }),
 }));
 
 // authService mock
-jest.mock("../../utils/authService", () => ({
+vi.mock("../../utils/authService", () => ({
   loginWithEmailPassword: (creds: any, activity: any) =>
     mockLoginWithEmailPassword(creds, activity),
   getDeviceType: () => mockGetDeviceType(),
@@ -44,7 +45,7 @@ jest.mock("../../utils/authService", () => ({
 
 describe("LoginPage", () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     localStorage.clear();
   });
 

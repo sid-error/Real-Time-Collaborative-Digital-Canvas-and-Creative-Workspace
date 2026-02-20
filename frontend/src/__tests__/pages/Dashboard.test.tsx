@@ -1,4 +1,5 @@
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import Dashboard from "../../pages/Dashboard";
 
@@ -153,8 +154,9 @@ describe("Dashboard Component", () => {
       expect(screen.getByText("Beta Room")).toBeInTheDocument();
     });
 
+    const user = userEvent.setup();
     const searchInput = screen.getByLabelText("Search rooms");
-    fireEvent.change(searchInput, { target: { value: "Alpha" } });
+    await user.type(searchInput, "Alpha");
 
     expect(screen.getByText("Alpha Room")).toBeInTheDocument();
     expect(screen.queryByText("Beta Room")).not.toBeInTheDocument();

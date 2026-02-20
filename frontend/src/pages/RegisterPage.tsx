@@ -135,7 +135,6 @@ const RegisterPage: React.FC = () => {
                 <User className="absolute left-3 top-3 text-slate-400" size={18} aria-hidden="true" />
                 <input
                   type="text"
-                  placeholder="John Doe"
                   value={fullName}
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setFullName(e.target.value)}
                   className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-lg text-black focus:ring-1 focus:ring-black focus:border-black outline-none transition-all text-sm"
@@ -152,7 +151,6 @@ const RegisterPage: React.FC = () => {
                 <AtSign className="absolute left-3 top-3 text-slate-400" size={18} aria-hidden="true" />
                 <input
                   type="text"
-                  placeholder="johndoe"
                   value={username}
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setUsername(e.target.value)}
                   className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-lg text-black focus:ring-1 focus:ring-black focus:border-black outline-none transition-all text-sm"
@@ -173,7 +171,6 @@ const RegisterPage: React.FC = () => {
                 <Mail className="absolute left-3 top-3 text-slate-400" size={18} aria-hidden="true" />
                 <input
                   type="email"
-                  placeholder="name@company.com"
                   value={email}
                   onChange={(e: ChangeEvent<HTMLInputElement>) => handleEmailChange(e.target.value)}
                   className={`w-full pl-10 pr-4 py-2.5 bg-white border rounded-lg text-black focus:ring-1 focus:ring-black focus:border-black outline-none transition-all text-sm ${email && !emailValidation.valid ? 'border-red-300' : 'border-slate-200'}`}
@@ -193,7 +190,6 @@ const RegisterPage: React.FC = () => {
                 <Lock className="absolute left-3 top-3 text-slate-400" size={18} aria-hidden="true" />
                 <input
                   type="password"
-                  placeholder="••••••••"
                   value={password}
                   onChange={(e: ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
                   className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-lg text-black focus:ring-1 focus:ring-black focus:border-black outline-none transition-all text-sm"

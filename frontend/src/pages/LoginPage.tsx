@@ -7,6 +7,8 @@ import {
   loginWithEmailPassword,
   getDeviceType
 } from '../utils/authService';
+import { GoogleLogin, GoogleOAuthProvider } from '@react-oauth/google';
+import axios from 'axios';
 
 /**
  * Login activity interface for tracking user login history
@@ -271,6 +273,21 @@ const LoginPage: React.FC = () => {
     </div>
   );
 
+const handleGoogleSuccess = async (credentialResponse: any) => {
+  try {
+    const { data } = await axios.post(`${import.meta.env.VITE_API_BASE_URL}/auth/google-login`, {
+      credential: credentialResponse.credential,
+    });
+    
+    if (data.success) {
+      login(data.token, data.user); // Update your global Auth state
+      navigate('/dashboard');
+    }
+  } catch (err) {
+    console.error("Google Login Error:", err);
+  }
+};
+
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-slate-50">
       <div className="w-full max-w-6xl flex flex-col lg:flex-row gap-8">
@@ -327,7 +344,7 @@ const LoginPage: React.FC = () => {
                     placeholder="Email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                    className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all bg-white text-slate-900 placeholder-slate-500"
                     required
                     disabled={isLoading}
                     autoComplete="email"
@@ -361,7 +378,7 @@ const LoginPage: React.FC = () => {
                     placeholder="Enter password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pl-10 pr-12 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                    className="w-full pl-10 pr-12 py-2.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all bg-white text-slate-900 placeholder-slate-500"
                     required
                     disabled={isLoading}
                     autoComplete="current-password"
@@ -377,6 +394,23 @@ const LoginPage: React.FC = () => {
                   </button>
                 </div>
               </div>
+
+              // Find the GoogleOAuthProvider wrapper in your return statement and update it:
+              <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID}>
+                <div className="mt-6">
+                  <GoogleLogin 
+                    onSuccess={handleGoogleSuccess} 
+                    onError={() => {
+                      setError({
+                        title: 'Login Failed',
+                        message: 'Google Authentication was unsuccessful',
+                        type: 'error'
+                      });
+                    }}
+                    useOneTap
+                  />
+                </div>
+              </GoogleOAuthProvider>
 
               {/* Remember Me Checkbox */}
               <div className="flex items-center">

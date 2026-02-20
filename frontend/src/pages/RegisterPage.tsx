@@ -222,7 +222,7 @@ const RegisterPage: React.FC = () => {
               placeholder="Full Name"
               value={fullName}
               onChange={(e: ChangeEvent<HTMLInputElement>) => setFullName(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+              className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all bg-white text-slate-900 placeholder-slate-500"
               required
               disabled={isLoading}
               aria-label="Full name"
@@ -237,7 +237,7 @@ const RegisterPage: React.FC = () => {
               placeholder="Username"
               value={username}
               onChange={(e: ChangeEvent<HTMLInputElement>) => setUsername(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+              className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all bg-white text-slate-900 placeholder-slate-500"
               required
               disabled={isLoading}
               aria-label="Username"
@@ -258,7 +258,7 @@ const RegisterPage: React.FC = () => {
               placeholder="Email Address"
               value={email}
               onChange={(e: ChangeEvent<HTMLInputElement>) => handleEmailChange(e.target.value)}
-              className={`w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all ${email && !emailValidation.valid ? 'border-red-300' : 'border-slate-200'
+              className={`w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all bg-white text-slate-900 placeholder-slate-500 ${email && !emailValidation.valid ? 'border-red-300' : 'border-slate-200'}
                 }`}
               required
               disabled={isLoading}
@@ -287,7 +287,7 @@ const RegisterPage: React.FC = () => {
               placeholder="Password (min. 8 characters)"
               value={password}
               onChange={(e: ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+              className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all bg-white text-slate-900 placeholder-slate-500"
               required
               minLength={8}
               disabled={isLoading}
